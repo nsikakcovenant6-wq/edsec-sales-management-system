@@ -208,6 +208,18 @@ export class PrismaBusinessAccess implements BusinessAccess {
     }));
     if (!member) throw new Error("FORBIDDEN");
   }
+  async assertFeature(input: { userId: string; businessId: string; feature: string }): Promise<void> {
+    const enabled = await withTenantContext(this.prisma, input, async (tx) => {
+      const subscription = await tx.subscription.findUnique({ where: { businessId: input.businessId }, select: { planCode: true } });
+      if (!subscription) return false;
+      const feature = await tx.planFeature.findUnique({
+        where: { planCode_key: { planCode: subscription.planCode, key: input.feature } },
+        select: { enabled: true },
+      });
+      return Boolean(feature?.enabled);
+    });
+    if (!enabled) throw new Error("FEATURE_NOT_AVAILABLE");
+  }
   async assertPermission(input: { userId: string; businessId: string; permission: string }): Promise<void> {
     const allowed = await withTenantContext(this.prisma, input, async (tx) => {
       const member = await tx.businessMember.findFirst({
