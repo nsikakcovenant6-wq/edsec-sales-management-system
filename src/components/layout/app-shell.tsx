@@ -14,6 +14,8 @@ function isActive(pathname: string, href: string) {
 
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
+  const isAccountFlow = pathname.startsWith("/auth/") || pathname.startsWith("/onboarding/");
+  if (isAccountFlow) return <>{children}</>;
   const pageTitle = getNavigationTitle(pathname);
 
   return (
