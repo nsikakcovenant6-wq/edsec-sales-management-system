@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { navigationItems, getNavigationTitle } from "@/lib/nav";
+import { Can } from "@/lib/permissions";
 
 const mobileItems = navigationItems.filter((item) => ["/", "/products", "/inventory", "/pos"].includes(item.href));
 
@@ -24,9 +25,10 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         </div>
         <div className="px-4 pt-6"><p className="px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">Workspace</p>
           <nav aria-label="Main navigation" className="mt-3 space-y-1">
-            {navigationItems.map(({ label, href, icon: Icon }) => {
+            {navigationItems.map(({ label, href, icon: Icon, permission }) => {
               const active = isActive(pathname, href);
-              return <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${active ? "bg-[var(--brand-soft)] text-[var(--brand)]" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}><Icon size={18} aria-hidden="true" />{label}</Link>;
+              const link = <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${active ? "bg-[var(--brand-soft)] text-[var(--brand)]" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}><Icon size={18} aria-hidden="true" />{label}</Link>;
+              return permission ? <Can key={href} permission={permission}>{link}</Can> : link;
             })}
           </nav>
         </div>
@@ -42,9 +44,10 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       </div>
 
       <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[var(--border)] bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden">
-        {mobileItems.map(({ label, href, icon: Icon }) => {
+        {mobileItems.map(({ label, href, icon: Icon, permission }) => {
           const active = isActive(pathname, href);
-          return <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium ${active ? "text-[var(--brand)]" : "text-slate-500"}`}><Icon size={19} aria-hidden="true" /><span>{label === "Point of sale" ? "POS" : label}</span></Link>;
+          const link = <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium ${active ? "text-[var(--brand)]" : "text-slate-500"}`}><Icon size={19} aria-hidden="true" /><span>{label === "Point of sale" ? "POS" : label}</span></Link>;
+          return permission ? <Can key={href} permission={permission}>{link}</Can> : link;
         })}
       </nav>
     </div>
