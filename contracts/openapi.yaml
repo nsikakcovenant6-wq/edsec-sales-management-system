@@ -1016,7 +1016,412 @@ components:
         id: { type: string, format: uuid }
         product_id: { type: string, format: uuid }
         quantity_ordered: { type: string }
-        quantity_received: { type: string, pattern: '^[0-9]+(\\.[0-9]{1,4})?
+        quantity_received: { type: string, pattern: '^[0-9]+(\\.[0-9]{1,4})?        unit_cost_minor: { $ref: '#/components/schemas/MoneyMinor' }
+    Sale:
+      type: object
+      required: [id, branch_id, status, currency_code, subtotal_minor, tax_minor, discount_minor, total_minor, paid_minor, balance_minor, items, payments, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        branch_id: { type: string, format: uuid }
+        receipt_number: { type: [string, 'null'] }
+        status: { type: string, enum: [completed, partially_paid, partially_refunded, voided, refunded] }
+        currency_code: { type: string }
+        subtotal_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        tax_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        discount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        total_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        paid_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        balance_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        items: { type: array, items: { $ref: '#/components/schemas/SaleItem' } }
+        payments: { type: array, items: { $ref: '#/components/schemas/Payment' } }
+        created_at: { type: string, format: date-time }
+    SaleItem:
+      type: object
+      required: [id, product_id, product_name, quantity, unit_price_minor, line_total_minor]
+      properties:
+        id: { type: string, format: uuid }
+        product_id: { type: string, format: uuid }
+        product_name: { type: string }
+        quantity: { type: string }
+        unit_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        discount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        line_total_minor: { $ref: '#/components/schemas/MoneyMinor' }
+    Payment:
+      type: object
+      required: [id, method, status, amount_minor, currency_code, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        method: { type: string, enum: [cash, bank_transfer, card_terminal, customer_credit, paystack] }
+        status: { type: string, enum: [pending, confirmed, failed, reversed] }
+        amount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        currency_code: { type: string }
+        provider_reference: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    PaymentCreate:
+      type: object
+      required: [sale_id, method, amount_minor, currency_code]
+      properties:
+        sale_id: { type: string, format: uuid }
+        method: { type: string, enum: [cash, bank_transfer, card_terminal, customer_credit, paystack] }
+        amount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        currency_code: { type: string, pattern: '^[A-Z]{3}$' }
+        bank_reference: { type: [string, 'null'] }
+        callback_url: { type: [string, 'null'], format: uri }
+    PaymentInitiationResult:
+      type: object
+      required: [payment, next_step]
+      properties:
+        payment: { $ref: '#/components/schemas/Payment' }
+        next_step: { type: string, enum: [complete, await_manual_confirmation, redirect_to_paystack] }
+        authorization_url: { type: [string, 'null'], format: uri }
+        access_code: { type: [string, 'null'] }
+        reference: { type: [string, 'null'] }
+        pending_message: { type: [string, 'null'] }
+    Refund:
+      type: object
+      required: [id, sale_id, status, amount_minor, reason, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        sale_id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, approved, processed, rejected] }
+        amount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        reason: { type: string }
+        created_at: { type: string, format: date-time }
+    ProductTemplateImage:
+      type: object
+      required: [url, licence, source]
+      properties:
+        url: { type: string, format: uri }
+        licence: { type: string }
+        source: { type: string, format: uri }
+        attribution: { type: [string, 'null'] }
+    ProductTemplate:
+      type: object
+      required: [id, name, category_id, images]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        category_id: { type: [string, 'null'], format: uuid }
+        description: { type: [string, 'null'] }
+        images: { type: array, items: { $ref: '#/components/schemas/ProductTemplateImage' } }
+    ProductImportRow:
+      type: object
+      required: [row_number, status]
+      properties:
+        row_number: { type: integer }
+        status: { type: string, enum: [accepted, rejected] }
+        errors: { type: array, items: { type: string } }
+    ProductImport:
+      type: object
+      required: [id, status, total_rows, accepted_rows, rejected_rows, rows]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, validating, processing, completed, partial_success, failed] }
+        total_rows: { type: integer }
+        accepted_rows: { type: integer }
+        rejected_rows: { type: integer }
+        rows: { type: array, items: { $ref: '#/components/schemas/ProductImportRow' } }
+    SyncStatus:
+      type: object
+      required: [pending_count, last_synced_at, batch_limit]
+      properties:
+        pending_count: { type: integer }
+        last_synced_at: { type: [string, 'null'], format: date-time }
+        batch_limit: { type: integer, const: 50 }
+    UploadUrlRequest:
+      type: object
+      required: [purpose, file_name, content_type, size_bytes]
+      properties:
+        purpose: { type: string, enum: [business_logo, product_image, import_file] }
+        file_name: { type: string, maxLength: 180 }
+        content_type: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        size_bytes: { type: integer, minimum: 1, maximum: 10485760 }
+    UploadUrlResult:
+      type: object
+      required: [upload_url, object_path, expires_at]
+      properties:
+        upload_url: { type: string, format: uri }
+        object_path: { type: string }
+        expires_at: { type: string, format: date-time }
+        read_url: { type: [string, 'null'], format: uri }
+    PurchaseOrderWrite:
+      type: object
+      required: [branch_id, supplier_id, lines]
+      properties:
+        branch_id: { type: string, format: uuid }
+        supplier_id: { type: string, format: uuid }
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [product_id, quantity, unit_cost_minor]
+            properties:
+              product_id: { type: string, format: uuid }
+              quantity: { type: string, pattern: '^[0-9]+(\\.[0-9]{1,4})?$' }
+              unit_cost_minor: { $ref: '#/components/schemas/MoneyMinor' }
+    SaleCreate:
+      type: object
+      required: [branch_id, items, tenders]
+      properties:
+        branch_id: { type: string, format: uuid }
+        customer_id: { type: [string, 'null'], format: uuid }
+        client_created_at: { type: [string, 'null'], format: date-time }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [product_id, quantity]
+            properties:
+              product_id: { type: string, format: uuid }
+              variant_id: { type: [string, 'null'], format: uuid }
+              quantity: { type: string, pattern: '^[0-9]+(\\.[0-9]{1,4})?$' }
+              unit_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
+              discount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        discount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        tenders:
+          type: array
+          items:
+            type: object
+            required: [method, amount_minor]
+            properties:
+              method: { type: string, enum: [cash, bank_transfer, card, paystack, customer_credit] }
+              amount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+              provider_reference: { type: [string, 'null'] }
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    Forbidden:
+      description: Authenticated but not authorised.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    NotFound:
+      description: Resource not found in the caller's authorised scope.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    ValidationError:
+      description: Invalid request.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    PaymentRequired:
+      description: Payment required or subscription inactive.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    Conflict:
+      description: State or idempotency conflict.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    RateLimited:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema: { type: integer, minimum: 1 }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    PayloadTooLarge:
+      description: Upload exceeds allowed size.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+ }
+        unit_cost_minor: { $ref: '#/components/schemas/MoneyMinor' }
+    Sale:
+      type: object
+      required: [id, branch_id, status, currency_code, subtotal_minor, tax_minor, discount_minor, total_minor, paid_minor, balance_minor, items, payments, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        branch_id: { type: string, format: uuid }
+        receipt_number: { type: [string, 'null'] }
+        status: { type: string, enum: [completed, partially_paid, partially_refunded, voided, refunded] }
+        currency_code: { type: string }
+        subtotal_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        tax_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        discount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        total_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        paid_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        balance_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        items: { type: array, items: { $ref: '#/components/schemas/SaleItem' } }
+        payments: { type: array, items: { $ref: '#/components/schemas/Payment' } }
+        created_at: { type: string, format: date-time }
+    SaleItem:
+      type: object
+      required: [id, product_id, product_name, quantity, unit_price_minor, line_total_minor]
+      properties:
+        id: { type: string, format: uuid }
+        product_id: { type: string, format: uuid }
+        product_name: { type: string }
+        quantity: { type: string }
+        unit_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        discount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        line_total_minor: { $ref: '#/components/schemas/MoneyMinor' }
+    Payment:
+      type: object
+      required: [id, method, status, amount_minor, currency_code, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        method: { type: string, enum: [cash, bank_transfer, card_terminal, customer_credit, paystack] }
+        status: { type: string, enum: [pending, confirmed, failed, reversed] }
+        amount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        currency_code: { type: string }
+        provider_reference: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    PaymentCreate:
+      type: object
+      required: [sale_id, method, amount_minor, currency_code]
+      properties:
+        sale_id: { type: string, format: uuid }
+        method: { type: string, enum: [cash, bank_transfer, card_terminal, customer_credit, paystack] }
+        amount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        currency_code: { type: string, pattern: '^[A-Z]{3}$' }
+        bank_reference: { type: [string, 'null'] }
+        callback_url: { type: [string, 'null'], format: uri }
+    PaymentInitiationResult:
+      type: object
+      required: [payment, next_step]
+      properties:
+        payment: { $ref: '#/components/schemas/Payment' }
+        next_step: { type: string, enum: [complete, await_manual_confirmation, redirect_to_paystack] }
+        authorization_url: { type: [string, 'null'], format: uri }
+        access_code: { type: [string, 'null'] }
+        reference: { type: [string, 'null'] }
+        pending_message: { type: [string, 'null'] }
+    Refund:
+      type: object
+      required: [id, sale_id, status, amount_minor, reason, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        sale_id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, approved, processed, rejected] }
+        amount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        reason: { type: string }
+        created_at: { type: string, format: date-time }
+    ProductTemplateImage:
+      type: object
+      required: [url, licence, source]
+      properties:
+        url: { type: string, format: uri }
+        licence: { type: string }
+        source: { type: string, format: uri }
+        attribution: { type: [string, 'null'] }
+    ProductTemplate:
+      type: object
+      required: [id, name, category_id, images]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        category_id: { type: string, format: uuid }
+        description: { type: [string, 'null'] }
+        images: { type: array, items: { $ref: '#/components/schemas/ProductTemplateImage' } }
+    ProductImportRow:
+      type: object
+      required: [row_number, status]
+      properties:
+        row_number: { type: integer }
+        status: { type: string, enum: [accepted, rejected] }
+        errors: { type: array, items: { type: string } }
+    ProductImport:
+      type: object
+      required: [id, status, total_rows, accepted_rows, rejected_rows, rows]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, validating, processing, completed, partial_success, failed] }
+        total_rows: { type: integer }
+        accepted_rows: { type: integer }
+        rejected_rows: { type: integer }
+        rows: { type: array, items: { $ref: '#/components/schemas/ProductImportRow' } }
+    SyncStatus:
+      type: object
+      required: [pending_count, last_synced_at, batch_limit]
+      properties:
+        pending_count: { type: integer }
+        last_synced_at: { type: [string, 'null'], format: date-time }
+        batch_limit: { type: integer, const: 50 }
+    UploadUrlRequest:
+      type: object
+      required: [purpose, file_name, content_type, size_bytes]
+      properties:
+        purpose: { type: string, enum: [business_logo, product_image, import_file] }
+        file_name: { type: string, maxLength: 180 }
+        content_type: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        size_bytes: { type: integer, minimum: 1, maximum: 10485760 }
+    UploadUrlResult:
+      type: object
+      required: [upload_url, object_path, expires_at]
+      properties:
+        upload_url: { type: string, format: uri }
+        object_path: { type: string }
+        expires_at: { type: string, format: date-time }
+        read_url: { type: [string, 'null'], format: uri }
+    PurchaseOrderWrite:
+      type: object
+      required: [branch_id, supplier_id, lines]
+      properties:
+        branch_id: { type: string, format: uuid }
+        supplier_id: { type: string, format: uuid }
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [product_id, quantity, unit_cost_minor]
+            properties:
+              product_id: { type: string, format: uuid }
+              quantity: { type: string, pattern: '^[0-9]+(\\.[0-9]{1,4})?$' }
+              unit_cost_minor: { $ref: '#/components/schemas/MoneyMinor' }
+    SaleCreate:
+      type: object
+      required: [branch_id, items, tenders]
+      properties:
+        branch_id: { type: string, format: uuid }
+        customer_id: { type: [string, 'null'], format: uuid }
+        client_created_at: { type: [string, 'null'], format: date-time }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [product_id, quantity]
+            properties:
+              product_id: { type: string, format: uuid }
+              variant_id: { type: [string, 'null'], format: uuid }
+              quantity: { type: string, pattern: '^[0-9]+(\\.[0-9]{1,4})?$' }
+              unit_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
+              discount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        discount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        tenders:
+          type: array
+          items:
+            type: object
+            required: [method, amount_minor]
+            properties:
+              method: { type: string, enum: [cash, bank_transfer, card, paystack, customer_credit] }
+              amount_minor: { $ref: '#/components/schemas/MoneyMinor' }
+              provider_reference: { type: [string, 'null'] }
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    Forbidden:
+      description: Authenticated but not authorised.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    NotFound:
+      description: Resource not found in the caller's authorised scope.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    ValidationError:
+      description: Invalid request.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    PaymentRequired:
+      description: Payment required or subscription inactive.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    Conflict:
+      description: State or idempotency conflict.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    RateLimited:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema: { type: integer, minimum: 1 }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    PayloadTooLarge:
+      description: Upload exceeds allowed size.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+ }
         unit_cost_minor: { $ref: '#/components/schemas/MoneyMinor' }
     Sale:
       type: object
