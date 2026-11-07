@@ -97,7 +97,6 @@ export function OnboardingScreen({ step }: { step: OnboardingStep }) {
   const removeBranch = () => setAdditionalBranches((items) => items.slice(0, -1));
   const goNext = () => {
     if (step === "categories" && selected.length === 0) { setNotice("Select at least one business category before continuing."); return; }
-    setNotice("Step completed locally. No business or branch data was saved.");
     router.push(next);
   };
   return <Frame><div className="mb-7 flex items-center justify-between"><Link href="/auth/register" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--muted)]"><ArrowLeft size={15}/> Exit setup</Link><span className="text-xs font-medium text-[var(--muted)]">Preview setup</span></div>
