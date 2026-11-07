@@ -6,23 +6,104 @@ generator client {
 }
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
-enum BusinessStatus { ACTIVE SUSPENDED CLOSED }
-enum MemberStatus { INVITED ACTIVE SUSPENDED REMOVED }
-enum ProductStatus { ACTIVE ARCHIVED }
-enum TrackingType { QUANTITY SERIALIZED BATCH }
-enum SubscriptionStatus { TRIAL ACTIVE GRACE EXPIRED }
-enum BillingInterval { MONTHLY QUARTERLY ANNUALLY CUSTOM }
-enum PaymentMethod { CASH BANK_TRANSFER CARD_TERMINAL CUSTOMER_CREDIT PAYSTACK }
-enum PaymentStatus { PENDING CONFIRMED FAILED REVERSED }
-enum SaleStatus { COMPLETED PARTIALLY_PAID PARTIALLY_REFUNDED VOIDED REFUNDED }
-enum TaxMode { INCLUSIVE EXCLUSIVE }
-enum OnboardingStatus { NOT_STARTED IN_PROGRESS COMPLETED }
-enum OnboardingStep { BUSINESS_PROFILE BUSINESS_CATEGORY BRANCH_SETUP STORE_CONFIGURATION PRODUCT_TEMPLATES PRODUCT_IMPORT SUBSCRIPTION_SELECTION TEAM_INVITATION ONBOARDING_COMPLETE }
-enum ImportStatus { QUEUED VALIDATING PROCESSING COMPLETED PARTIAL_SUCCESS FAILED }
-enum RefundStatus { PENDING APPROVED PROCESSED REJECTED }
-enum StockMovementType { OPENING PURCHASE_RECEIPT SALE_RETURN SALE_VOID TRANSFER_IN TRANSFER_OUT ADJUSTMENT_IN ADJUSTMENT_OUT WRITE_OFF }
+enum BusinessStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+enum MemberStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+enum ProductStatus {
+  ACTIVE
+  ARCHIVED
+}
+enum TrackingType {
+  QUANTITY
+  SERIALIZED
+  BATCH
+}
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  GRACE
+  EXPIRED
+}
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+  CUSTOM
+}
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD_TERMINAL
+  CUSTOMER_CREDIT
+  PAYSTACK
+}
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  REVERSED
+}
+enum SaleStatus {
+  COMPLETED
+  PARTIALLY_PAID
+  PARTIALLY_REFUNDED
+  VOIDED
+  REFUNDED
+}
+enum TaxMode {
+  INCLUSIVE
+  EXCLUSIVE
+}
+enum OnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+enum OnboardingStep {
+  BUSINESS_PROFILE
+  BUSINESS_CATEGORY
+  BRANCH_SETUP
+  STORE_CONFIGURATION
+  PRODUCT_TEMPLATES
+  PRODUCT_IMPORT
+  SUBSCRIPTION_SELECTION
+  TEAM_INVITATION
+  ONBOARDING_COMPLETE
+}
+enum ImportStatus {
+  QUEUED
+  VALIDATING
+  PROCESSING
+  COMPLETED
+  PARTIAL_SUCCESS
+  FAILED
+}
+enum RefundStatus {
+  PENDING
+  APPROVED
+  PROCESSED
+  REJECTED
+}
+enum StockMovementType {
+  OPENING
+  PURCHASE_RECEIPT
+  SALE_RETURN
+  SALE_VOID
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  WRITE_OFF
+}
 
 model UserProfile {
   id String @id @default(uuid()) @db.Uuid
@@ -461,4 +542,22 @@ model DeviceUnit {
   @@unique([businessId, id])
   @@index([businessId, branchId, status])
   @@map("device_units")
+}
+
+enum IdempotencyStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum SyncStatus {
+  ACCEPTED
+  REJECTED
+}
+
+enum DeviceStatus {
+  AVAILABLE
+  SOLD
+  RESERVED
+  RETURNED
 }
