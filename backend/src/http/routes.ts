@@ -43,6 +43,9 @@ function errorResponse(error: unknown, requestId: string): Response {
   const code = error instanceof Error ? error.message : "";
   const known: Record<string, [number, string]> = {
     EMAIL_NOT_VERIFIED: [403, "Verify your email before creating a business"],
+    EMAIL_REQUIRED: [400, "A verified email address is required"],
+    FORBIDDEN: [403, "You do not have permission to perform this action"],
+    INVALID_CATEGORY_IDS: [400, "One or more selected business categories are invalid"],
     VALIDATION_ERROR: [400, "The submitted information is invalid"],
     REQUIRED_STEP_CANNOT_BE_SKIPPED: [400, "Required onboarding steps cannot be skipped"],
     INVALID_ONBOARDING_STEP: [400, "The onboarding step is invalid"],
