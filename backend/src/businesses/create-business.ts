@@ -22,6 +22,7 @@ export interface CreatedBranch {
 }
 
 export interface BusinessProvisioningTransaction {
+  setProvisioningUser?(userId: string): Promise<void>;
   createBusiness(input: {
     name: string;
     currencyCode: string;
@@ -67,6 +68,7 @@ export async function createBusiness(
   }
 
   return repository.transaction(async (tx) => {
+    await tx.setProvisioningUser?.(input.ownerUserId);
     const business = await tx.createBusiness({
       name,
       currencyCode,
