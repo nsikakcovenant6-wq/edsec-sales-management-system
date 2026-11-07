@@ -1,0 +1,56 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    branches: [frontend/main]
+    paths:
+      - "src/**"
+      - ".github/workflows/frontend-ci.yml"
+      - "package.json"
+      - "tsconfig.json"
+      - "next.config.ts"
+      - "eslint.config.mjs"
+      - "vitest.config.ts"
+  push:
+    branches: [frontend/phase-0-foundation]
+    paths:
+      - "src/**"
+      - ".github/workflows/frontend-ci.yml"
+      - "package.json"
+      - "tsconfig.json"
+      - "next.config.ts"
+      - "eslint.config.mjs"
+      - "vitest.config.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Install, lint, typecheck, test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package.json
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Production build
+        run: npm run build
