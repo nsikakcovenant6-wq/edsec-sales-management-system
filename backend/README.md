@@ -25,3 +25,5 @@ This package contains server-only authentication verification, tenant context, p
 The server-only foundation currently includes Supabase token verification, transaction-local tenant context, scoped permission checks, BigInt money parsing, quantity precision checks, append-only audit writer and an initial tenant RLS SQL policy script.
 
 The RLS SQL is a reviewable migration artifact only. It has not been applied to a live EDSEC database. Cross-tenant database integration tests require an EDSEC Supabase/PostgreSQL project and a non-BYPASSRLS runtime role.
+
+CI is configured to typecheck, test and build this package on backend feature branches.
