@@ -1,13 +1,13 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Building2, Check, ChevronRight, ShieldCheck, Sparkles } from "lucide-react";
 
 const categories = ["Retail & general merchandise", "Food, grocery & beverages", "Fashion & apparel", "Electronics & gadgets", "Health & beauty", "Pharmacy", "Wholesale & distribution", "Hardware & building materials", "Other"];
 const fieldClass = "mt-2 w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100";
 const labelClass = "block text-sm font-medium text-slate-700";
 
-function Frame({ children }: { children: React.ReactNode }) {
+function Frame({ children }: { children: ReactNode }) {
   return <main className="min-h-screen bg-[var(--background)] px-4 py-8 sm:px-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(380px,0.85fr)] lg:gap-10 lg:px-10 lg:py-10">
     <section className="mx-auto flex w-full max-w-xl flex-col justify-between lg:py-5">
       <Link href="/" className="inline-flex w-fit items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-[var(--brand)] text-lg font-bold text-white">E</span><span><b className="block">EDSEC</b><small className="text-[var(--muted)]">Sales Management</small></span></Link>
@@ -46,7 +46,7 @@ export function AuthScreen({ screen }: { screen: AuthName }) {
     <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); setNotice(submitMessage); }}>
       {isRegister && <Field label="Full name" placeholder="Your full name" autoComplete="name"/>}
       {!isVerify && <Field label="Email address" type="email" placeholder="you@company.com" autoComplete="email"/>}
-      {(isLogin || isRegister || screen === "reset-password") && <Field label={screen === "reset-password" ? "New password" : "Password"} type="password" placeholder="Enter your password" autoComplete={isLogin ? "current-password" : "new-password"/>}
+      {(isLogin || isRegister || screen === "reset-password") && <Field label={screen === "reset-password" ? "New password" : "Password"} type="password" placeholder="Enter your password" autoComplete={isLogin ? "current-password" : "new-password"}/>}}
       {isRegister && <Field label="Confirm password" type="password" placeholder="Re-enter your password" autoComplete="new-password"/>}
       {isVerify && <label className={labelClass}>Six-digit code<input className={fieldClass + " text-center text-2xl font-semibold tracking-[0.65em]"} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} required/><span className="mt-2 block text-xs font-normal text-[var(--muted)]">Enter the code shown in your verification email.</span></label>}
       {isRegister && <label className="flex items-start gap-3 text-xs leading-5 text-[var(--muted)]"><input type="checkbox" className="mt-1 size-4 accent-[var(--brand)]" required/>I agree to the terms of service and privacy policy.</label>}
@@ -56,7 +56,7 @@ export function AuthScreen({ screen }: { screen: AuthName }) {
     <div className="mt-7 flex flex-wrap items-center justify-between gap-3 text-sm">
       {isLogin ? <Link className="font-medium text-[var(--brand)]" href="/auth/forgot-password">Forgot password?</Link> : <Link className="inline-flex items-center gap-1 text-[var(--muted)]" href="/auth/login"><ArrowLeft size={14}/> Back to sign in</Link>}
       {isRegister ? <Link className="font-medium text-[var(--brand)]" href="/auth/login">Already registered? Sign in</Link> : isLogin ? <Link className="font-medium text-[var(--brand)]" href="/auth/register">Create an account</Link> : isForgot ? <Link className="font-medium text-[var(--brand)]" href="/auth/reset-password">Continue to reset preview</Link> : isVerify ? <button type="button" onClick={() => setNotice("Resend preview selected. No email was sent.")} className="font-medium text-[var(--brand)]">Resend code</button> : null}
-    </div><p className="mt-8 flex items-center gap-2 text-xs text-[var(--muted)]"><ShieldCheck size={15}/> Account security will follow the approved authentication contract.</p>
+    </div>{isRegister && <div className="mt-4 flex flex-col gap-3 text-sm"><Link className="font-medium text-[var(--brand)]" href="/auth/verify-email">Open email verification preview</Link><Link className="font-medium text-[var(--brand)]" href="/onboarding/welcome">Continue to business setup preview</Link></div>}<p className="mt-8 flex items-center gap-2 text-xs text-[var(--muted)]"><ShieldCheck size={15}/> Account security will follow the approved authentication contract.</p>
   </Frame>;
 }
 type OnboardingStep = "welcome" | "business" | "categories" | "branches" | "complete";
