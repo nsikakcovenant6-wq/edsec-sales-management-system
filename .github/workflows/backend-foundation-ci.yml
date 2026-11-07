@@ -7,7 +7,7 @@ on:
       - "backend/**"
       - ".github/workflows/backend-foundation-ci.yml"
   push:
-    branches: [backend/phase-0-foundation]
+    branches: [backend/phase-0-foundation, backend/phase-0-foundation-runtime]
     paths:
       - "backend/**"
   workflow_dispatch:
