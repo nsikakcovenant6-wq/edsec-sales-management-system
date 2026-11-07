@@ -166,3 +166,20 @@ CREATE TRIGGER stock_movements_immutable
 -- The runtime database role must be NOBYPASSRLS and must not be the postgres or
 -- service_role account. Revoke direct browser DML; only the API runtime role may write.
 REVOKE UPDATE, DELETE ON public.audit_logs, public.stock_movements FROM PUBLIC;
+
+
+-- Permit a user to enumerate their own active memberships without selecting an
+-- arbitrary tenant. The application then re-enters each tenant context before
+-- reading business, role, branch and onboarding details.
+CREATE POLICY business_member_self_read ON public.business_members
+  FOR SELECT USING (user_id = public.app_current_user_id() AND status = 'ACTIVE');
+
+CREATE POLICY business_self_membership_read ON public.businesses
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.business_members bm
+      WHERE bm.business_id = businesses.id
+        AND bm.user_id = public.app_current_user_id()
+        AND bm.status = 'ACTIVE'
+    )
+  );
