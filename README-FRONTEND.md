@@ -36,7 +36,7 @@ Onboarding routes:
 - `/onboarding/store-configuration` — explicit placeholder for a required backend step whose fields and save operation are not yet defined.
 - `/onboarding/complete` — preview review only; it does not mark server onboarding complete.
 
-All these flows are intentionally presentation-only. Form validation and navigation run in the browser, but no account is created, OTP is sent or verified, recovery email is sent, password is changed, category is persisted, or business/branch data is saved. OTP resend is also a UI preview only.
+All these flows are intentionally presentation-only. Form validation and navigation run in the browser, but no account is created, OTP is sent or verified, recovery email is sent, password is changed, category is persisted, or business/branch data is saved. OTP resend is also a UI preview only. The onboarding route layout holds business details, category choices and additional branch drafts in a shared in-memory context so they survive step-to-step navigation; they reset on refresh or when leaving the onboarding layout. Password confirmation, category selection, business name and additional branch name/code receive local validation. These checks are usability safeguards only and do not establish backend password rules or API requirements.
 
 ## Contract review boundary
 
