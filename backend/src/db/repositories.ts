@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { PrismaClient, type OnboardingStep as PrismaOnboardingStep, type OnboardingStatus as PrismaOnboardingStatus } from "@prisma/client";
+import { PrismaClient, type Prisma, type OnboardingStep as PrismaOnboardingStep, type OnboardingStatus as PrismaOnboardingStatus } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import type { BusinessProvisioningRepository, BusinessProvisioningTransaction } from "../businesses/create-business.js";
 import type { BusinessCategoryRepository } from "../businesses/categories.js";
@@ -151,8 +151,8 @@ export class PrismaBusinessProvisioningRepository implements BusinessProvisionin
 
 export class PrismaBusinessCategoryRepository implements BusinessCategoryRepository {
   constructor(private readonly prisma: PrismaClient, private readonly userId: string) {}
-  transaction<T>(work: Parameters<BusinessCategoryRepository["transaction"]>[0]): Promise<T> {
-    return this.prisma.$transaction<T>(async (tx) => {
+  transaction<T>(work: (tx: { assertCategoriesExist(categoryIds: string[]): Promise<void>; replaceBusinessCategories(businessId: string, categoryIds: string[]): Promise<void> }) => Promise<T>): Promise<T> {
+    return this.prisma.$transaction<T>(async (tx: Prisma.TransactionClient): Promise<T> => {
       let contextInstalled = false;
       const scoped = {
         assertCategoriesExist: async (categoryIds: string[]) => {
