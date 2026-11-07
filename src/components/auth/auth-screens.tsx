@@ -46,7 +46,7 @@ export function AuthScreen({ screen }: { screen: AuthName }) {
     <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); setNotice(submitMessage); }}>
       {isRegister && <Field label="Full name" placeholder="Your full name" autoComplete="name"/>}
       {!isVerify && <Field label="Email address" type="email" placeholder="you@company.com" autoComplete="email"/>}
-      {(isLogin || isRegister || screen === "reset-password") && <Field label={screen === "reset-password" ? "New password" : "Password"} type="password" placeholder="Enter your password" autoComplete={isLogin ? "current-password" : "new-password"}/>}}
+      {(isLogin || isRegister || screen === "reset-password") && <Field label={screen === "reset-password" ? "New password" : "Password"} type="password" placeholder="Enter your password" autoComplete={isLogin ? "current-password" : "new-password"}/>}
       {isRegister && <Field label="Confirm password" type="password" placeholder="Re-enter your password" autoComplete="new-password"/>}
       {isVerify && <label className={labelClass}>Six-digit code<input className={fieldClass + " text-center text-2xl font-semibold tracking-[0.65em]"} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} required/><span className="mt-2 block text-xs font-normal text-[var(--muted)]">Enter the code shown in your verification email.</span></label>}
       {isRegister && <label className="flex items-start gap-3 text-xs leading-5 text-[var(--muted)]"><input type="checkbox" className="mt-1 size-4 accent-[var(--brand)]" required/>I agree to the terms of service and privacy policy.</label>}
