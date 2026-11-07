@@ -444,7 +444,7 @@ paths:
     post:
       tags: [Storage]
       summary: Create a short-lived signed upload URL for tenant-owned media.
-      x-permission: business.settings.update
+      x-permission: purpose-dependent:business.settings.update|products.create|products.update|products.import
       requestBody:
         required: true
         content:
@@ -785,6 +785,7 @@ components:
               default_branch_id: { type: [string, 'null'], format: uuid }
               subscription_status: { $ref: '#/components/schemas/SubscriptionStatus' }
               features: { type: array, items: { $ref: '#/components/schemas/FeatureEntitlement' } }
+              onboarding: { $ref: '#/components/schemas/OnboardingProgress' }
     BusinessListItem:
       type: object
       required: [id, name, currency_code, timezone, logo_url, default_branch_id]
@@ -940,33 +941,21 @@ components:
       type: object
       required: [name, selling_price_minor]
       properties:
+        name: { type: string, minLength: 1, maxLength: 180 }
+        description: { type: [string, 'null'] }
+        sku: { type: [string, 'null'] }
+        barcode: { type: [string, 'null'] }
         category_id: { type: [string, 'null'], format: uuid }
         brand_id: { type: [string, 'null'], format: uuid }
-        branch_id: { type: [string, 'null'], format: uuid }
         tracking_type: { type: string, enum: [quantity, serial, batch, weighted] }
-        currency_code: { type: string, pattern: '^[A-Z]{3}        name: { type: string }
-        description: { type: [string, 'null'] }
-        sku: { type: [string, 'null'] }
-        barcode: { type: [string, 'null'] }
-        selling_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
-        cost_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
- }
-        opening_stock: { type: [string, 'null'], pattern: '^[0-9]+(\\.[0-9]{1,4})?        name: { type: string }
-        description: { type: [string, 'null'] }
-        sku: { type: [string, 'null'] }
-        barcode: { type: [string, 'null'] }
-        selling_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
-        cost_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
- }
+        currency_code: { type: string, pattern: '^[A-Z]{3}$' }
+        branch_id: { type: [string, 'null'], format: uuid }
+        opening_stock: { type: [string, 'null'], pattern: '^[0-9]+(\\.[0-9]{1,4})?$' }
         attributes: { type: object, additionalProperties: true }
+        selling_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        cost_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
         minimum_selling_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
         image_object_path: { type: [string, 'null'] }
-        name: { type: string }
-        description: { type: [string, 'null'] }
-        sku: { type: [string, 'null'] }
-        barcode: { type: [string, 'null'] }
-        selling_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
-        cost_price_minor: { $ref: '#/components/schemas/MoneyMinor' }
     InventoryBalance:
       type: object
       required: [product_id, branch_id, quantity_on_hand, quantity_reserved, quantity_available, updated_at]
