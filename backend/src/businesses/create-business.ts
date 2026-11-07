@@ -2,6 +2,9 @@ export interface CreateBusinessInput {
   ownerUserId: string;
   emailVerified: boolean;
   name: string;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
   currencyCode?: string;
   timezone?: string;
   vatEnabled?: boolean;
@@ -25,6 +28,9 @@ export interface BusinessProvisioningTransaction {
   setProvisioningUser?(userId: string): Promise<void>;
   createBusiness(input: {
     name: string;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
     currencyCode: string;
     timezone: string;
     vatEnabled: boolean;
@@ -71,6 +77,9 @@ export async function createBusiness(
     await tx.setProvisioningUser?.(input.ownerUserId);
     const business = await tx.createBusiness({
       name,
+      email: input.email?.trim().toLowerCase() || null,
+      phone: input.phone?.trim() || null,
+      address: input.address?.trim() || null,
       currencyCode,
       timezone: input.timezone ?? "Africa/Lagos",
       vatEnabled: input.vatEnabled ?? false,
