@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { navigationItems, getNavigationTitle } from "@/lib/nav";
 
@@ -10,7 +11,7 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
+export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
   const pageTitle = getNavigationTitle(pathname);
 
