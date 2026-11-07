@@ -15,8 +15,8 @@ export interface RouteDependencies {
   authClient: Parameters<typeof verifySupabaseAccessToken>[0];
   profiles: ProfileRepository;
   businesses: BusinessProvisioningRepository;
-  categories: BusinessCategoryRepository;
-  onboarding: OnboardingRepository & {
+  categories: (profileId: string) => BusinessCategoryRepository;
+  onboarding: (profileId: string) => OnboardingRepository & {
     getProgress(businessId: string): Promise<OnboardingProgress | null>;
   };
   access: BusinessAccess;
@@ -213,7 +213,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         if (!Array.isArray(input.category_ids) || !input.category_ids.every((id) => typeof id === "string")) {
           throw new ApiError(400, "VALIDATION_ERROR", "category_ids must be an array of category IDs", { category_ids: "invalid" });
         }
-        await replaceBusinessCategories(deps.categories, businessId, input.category_ids as string[]);
+        await replaceBusinessCategories(deps.categories(profile.id), businessId, input.category_ids as string[]);
         return json({ business_id: businessId, category_ids: [...new Set(input.category_ids)] }, 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
@@ -225,7 +225,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         const profile = await getOrCreateProfile(deps.profiles, user);
         await deps.access.assertMember({ userId: profile.id, businessId });
         await deps.access.assertPermission({ userId: profile.id, businessId, permission: "business.settings.read" });
-        const progress = await deps.onboarding.getProgress(businessId);
+        const progress = await deps.onboarding(profile.id).getProgress(businessId);
         if (!progress) throw new ApiError(404, "NOT_FOUND", "Onboarding progress was not found");
         return json(progress, 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
@@ -247,7 +247,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         if (input.current_step !== undefined && !patch.currentStep) throw new ApiError(400, "VALIDATION_ERROR", "current_step is invalid");
         if (input.completed_steps !== undefined && !patch.completedSteps) throw new ApiError(400, "VALIDATION_ERROR", "completed_steps must be an array of steps");
         if (input.skipped_steps !== undefined && !patch.skippedSteps) throw new ApiError(400, "VALIDATION_ERROR", "skipped_steps must be an array of steps");
-        return json(await patchOnboardingProgress(deps.onboarding, businessId, current, patch), 200, requestId);
+        return json(await patchOnboardingProgress(deps.onboarding(profile.id), businessId, current, patch), 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
   };
