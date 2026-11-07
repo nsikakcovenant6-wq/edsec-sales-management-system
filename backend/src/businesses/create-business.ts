@@ -64,6 +64,9 @@ export async function createBusiness(
   if (name.length < 2 || name.length > 160) {
     throw new BusinessProvisioningError("VALIDATION_ERROR", "Business name must be between 2 and 160 characters");
   }
+  if (input.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) {
+    throw new BusinessProvisioningError("VALIDATION_ERROR", "Business email address is invalid");
+  }
   const currencyCode = (input.currencyCode ?? "NGN").toUpperCase();
   if (!/^[A-Z]{3}$/.test(currencyCode)) {
     throw new BusinessProvisioningError("VALIDATION_ERROR", "Currency code must be a three-letter ISO code");
