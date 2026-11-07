@@ -54,6 +54,7 @@ export async function patchOnboardingProgress(
   }
 
   const currentStep = patch.currentStep ?? current.currentStep;
+  if (!ONBOARDING_STEPS.includes(currentStep)) throw new Error("INVALID_ONBOARDING_STEP");
   if (currentStep === "onboarding_complete") {
     const requiredComplete = [...REQUIRED_STEPS].every((step) => completed.has(step));
     if (!requiredComplete) throw new Error("REQUIRED_ONBOARDING_STEPS_INCOMPLETE");
