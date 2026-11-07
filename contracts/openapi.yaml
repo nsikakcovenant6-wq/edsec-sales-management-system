@@ -1016,7 +1016,7 @@ components:
         id: { type: string, format: uuid }
         product_id: { type: string, format: uuid }
         quantity_ordered: { type: string }
-        quantity_received: { type: string, pattern: '^[0-9]+(\\.[0-9]{1,4})?        unit_cost_minor: { $ref: '#/components/schemas/MoneyMinor' }
+        quantity_received: { type: string, pattern: '^[0-9]+(\\.[0-9]{1,4})?$' }
     Sale:
       type: object
       required: [id, branch_id, status, currency_code, subtotal_minor, tax_minor, discount_minor, total_minor, paid_minor, balance_minor, items, payments, created_at]
