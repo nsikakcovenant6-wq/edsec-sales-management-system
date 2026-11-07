@@ -92,7 +92,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
       try {
         const user = await identity(request, deps);
         await deps.access.assertMember({ userId: user.id, businessId });
-        await deps.access.assertPermission({ userId: user.id, businessId, permission: "business.update" });
+        await deps.access.assertPermission({ userId: user.id, businessId, permission: "business.settings.update" });
         const input = await body(request);
         if (!Array.isArray(input.category_ids) || !input.category_ids.every((id) => typeof id === "string")) {
           throw new ApiError(400, "VALIDATION_ERROR", "category_ids must be an array of category IDs", { category_ids: "invalid" });
@@ -118,7 +118,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
       try {
         const user = await identity(request, deps);
         await deps.access.assertMember({ userId: user.id, businessId });
-        await deps.access.assertPermission({ userId: user.id, businessId, permission: "business.update" });
+        await deps.access.assertPermission({ userId: user.id, businessId, permission: "business.settings.update" });
         const current = await deps.onboarding.getProgress(businessId);
         if (!current) throw new ApiError(404, "NOT_FOUND", "Onboarding progress was not found");
         const input = await body(request);
