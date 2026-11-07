@@ -19,6 +19,20 @@ jobs:
   checks:
     name: Backend core typecheck and unit tests
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: edsec_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d edsec_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/edsec_ci?schema=public
     defaults:
@@ -37,6 +51,14 @@ jobs:
         run: npm run db:validate
       - name: Generate Prisma client
         run: npm run prisma:generate
+      - name: Generate and apply schema migration in CI PostgreSQL
+        run: |
+          npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /tmp/edsec-schema.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /tmp/edsec-schema.sql
+      - name: Apply tenant RLS policies
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/tenant-rls.sql
+      - name: Test cross-tenant RLS isolation
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/tenant-rls-smoke.sql
       - name: Typecheck
         run: npm run typecheck
       - name: Unit tests
