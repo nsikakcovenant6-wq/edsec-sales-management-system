@@ -32,14 +32,17 @@ Onboarding routes:
 - `/onboarding/welcome`
 - `/onboarding/business` — business name, contact details, address, currency and time zone.
 - `/onboarding/categories` — multi-select category preview with a non-empty selection guard.
-- `/onboarding/branches` — primary branch and repeatable additional branch forms (name, code and address).
-- `/onboarding/complete`
+- `/onboarding/branches` — explains that the backend creates `Main Branch` (`MAIN`) automatically and provides repeatable additional branch forms (name, code and optional address).
+- `/onboarding/store-configuration` — explicit placeholder for a required backend step whose fields and save operation are not yet defined.
+- `/onboarding/complete` — preview review only; it does not mark server onboarding complete.
 
 All these flows are intentionally presentation-only. Form validation and navigation run in the browser, but no account is created, OTP is sent or verified, recovery email is sent, password is changed, category is persisted, or business/branch data is saved. OTP resend is also a UI preview only.
 
 ## Contract review boundary
 
-The frontend reviewed the draft v1.3 contract in PR #4. The UI must use the live `GET /categories` response and its category UUIDs once the contract is approved; the category names currently shown are illustrative. Business creation uses `POST /businesses`; business contact fields are represented in `BusinessUpdate`; branch creation uses `BranchWrite` with required name and code. The main-branch details collected by the preview still need Backend Lead confirmation because the contract says business creation provisions a default branch but does not define those branch fields in `BusinessCreate`.
+The frontend reviewed the draft v1.3 contract in PR #4. The UI must use the live `GET /categories` response and its category UUIDs once the contract is approved; the category names currently shown are illustrative. Business creation uses `POST /businesses`; business contact fields are represented in `BusinessUpdate`; branch creation uses `BranchWrite` with required name and code. The backend provisioning service creates `Main Branch` with code `MAIN`; the frontend does not collect duplicate primary-branch fields. Additional branches remain dependent on branch route handlers being implemented.
+
+The current runtime PR #5 route factory still needs the public category-list handler, business profile update handler and branch handlers. The `/me` runtime response also needs alignment with the `MeResponse` schema. Store configuration is a required onboarding step without a payload or save endpoint in v1.3.
 
 Do not wire API requests or Supabase Auth until the Backend Lead publishes a stable contract and confirms the authentication/session configuration. Signup OTP type, password policy, user metadata and web/Capacitor recovery redirect allowlists remain provisional pending live EDSEC Supabase verification.
 
