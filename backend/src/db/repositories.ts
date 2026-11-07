@@ -78,6 +78,7 @@ export class PrismaBusinessProvisioningRepository implements BusinessProvisionin
           return tx.business.create({
             data: {
               id: businessId, name: input.name, slug: `${slugBase}-${businessId.slice(0, 8)}`,
+              email: input.email, phone: input.phone, address: input.address,
               currencyCode: input.currencyCode, timezone: input.timezone,
               vatEnabled: input.vatEnabled, vatRateBps: input.vatRateBps,
             },
