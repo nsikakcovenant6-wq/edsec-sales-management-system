@@ -1,0 +1,464 @@
+// EDSEC Sales Management System — Prisma schema baseline v1.2
+// PostgreSQL is authoritative. RLS, composite tenant FKs, immutable triggers,
+// partial indexes and receipt allocation require SQL migrations in addition.
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum BusinessStatus { ACTIVE SUSPENDED CLOSED }
+enum MemberStatus { INVITED ACTIVE SUSPENDED REMOVED }
+enum ProductStatus { ACTIVE ARCHIVED }
+enum TrackingType { QUANTITY SERIALIZED BATCH }
+enum SubscriptionStatus { TRIAL ACTIVE GRACE EXPIRED }
+enum BillingInterval { MONTHLY QUARTERLY ANNUALLY CUSTOM }
+enum PaymentMethod { CASH BANK_TRANSFER CARD_TERMINAL CUSTOMER_CREDIT PAYSTACK }
+enum PaymentStatus { PENDING CONFIRMED FAILED REVERSED }
+enum SaleStatus { COMPLETED PARTIALLY_PAID PARTIALLY_REFUNDED VOIDED REFUNDED }
+enum TaxMode { INCLUSIVE EXCLUSIVE }
+enum OnboardingStatus { NOT_STARTED IN_PROGRESS COMPLETED }
+enum OnboardingStep { BUSINESS_PROFILE BUSINESS_CATEGORY BRANCH_SETUP STORE_CONFIGURATION PRODUCT_TEMPLATES PRODUCT_IMPORT SUBSCRIPTION_SELECTION TEAM_INVITATION ONBOARDING_COMPLETE }
+enum ImportStatus { QUEUED VALIDATING PROCESSING COMPLETED PARTIAL_SUCCESS FAILED }
+enum RefundStatus { PENDING APPROVED PROCESSED REJECTED }
+enum StockMovementType { OPENING PURCHASE_RECEIPT SALE_RETURN SALE_VOID TRANSFER_IN TRANSFER_OUT ADJUSTMENT_IN ADJUSTMENT_OUT WRITE_OFF }
+
+model UserProfile {
+  id String @id @default(uuid()) @db.Uuid
+  authUserId String @unique @map("auth_user_id") @db.Uuid
+  email String @unique
+  fullName String @map("full_name") @db.VarChar(120)
+  phone String? @db.VarChar(30)
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberships BusinessMember[]
+  @@map("user_profiles")
+}
+model Business {
+  id String @id @default(uuid()) @db.Uuid
+  name String @db.VarChar(160)
+  slug String @unique @db.VarChar(180)
+  email String?
+  phone String?
+  address String?
+  logoObjectPath String? @map("logo_object_path")
+  countryCode String @default("NG") @map("country_code") @db.Char(2)
+  currencyCode String @default("NGN") @map("currency_code") @db.Char(3)
+  timezone String @default("Africa/Lagos")
+  vatEnabled Boolean @default(false) @map("vat_enabled")
+  vatRateBps Int @default(750) @map("vat_rate_bps")
+  taxMode TaxMode @default(EXCLUSIVE) @map("tax_mode")
+  status BusinessStatus @default(ACTIVE)
+  defaultBranchId String? @map("default_branch_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  members BusinessMember[]
+  branches Branch[]
+  products Product[]
+  balances InventoryBalance[]
+  movements StockMovement[]
+  suppliers Supplier[]
+  purchases PurchaseOrder[]
+  sales Sale[]
+  payments Payment[]
+  subscription Subscription?
+  onboarding OnboardingProgress?
+  auditLogs AuditLog[]
+  @@map("businesses")
+}
+model BusinessMember {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  roleId String @map("role_id") @db.Uuid
+  status MemberStatus @default(ACTIVE)
+  defaultBranchId String? @map("default_branch_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  business Business @relation(fields: [businessId], references: [id])
+  user UserProfile @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+  branchAssignments MemberBranch[]
+  @@unique([businessId, userId])
+  @@index([userId, status])
+  @@index([businessId, status])
+  @@map("business_members")
+}
+model Role {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String? @map("business_id") @db.Uuid
+  code String @db.VarChar(50)
+  name String @db.VarChar(100)
+  isSystem Boolean @default(false) @map("is_system")
+  members BusinessMember[]
+  grants RolePermission[]
+  @@unique([businessId, code])
+  @@map("roles")
+}
+model Permission {
+  id String @id @default(uuid()) @db.Uuid
+  key String @unique @db.VarChar(120)
+  description String?
+  grants RolePermission[]
+  @@map("permissions")
+}
+model RolePermission {
+  roleId String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+  scope String @default("business") @db.VarChar(32)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+model Branch {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  name String @db.VarChar(120)
+  code String @db.VarChar(40)
+  address String?
+  phone String?
+  isDefault Boolean @default(false) @map("is_default")
+  isActive Boolean @default(true) @map("is_active")
+  business Business @relation(fields: [businessId], references: [id])
+  assignments MemberBranch[]
+  @@unique([businessId, code])
+  @@unique([businessId, id])
+  @@map("branches")
+}
+model MemberBranch {
+  businessId String @map("business_id") @db.Uuid
+  memberId String @map("member_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  member BusinessMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  @@id([memberId, branchId])
+  @@index([businessId, branchId])
+  @@map("member_branches")
+}
+model Category {
+  id String @id @default(uuid()) @db.Uuid
+  parentId String? @map("parent_id") @db.Uuid
+  name String @db.VarChar(120)
+  slug String @unique
+  featureFlags String[] @default([]) @map("feature_flags")
+  isActive Boolean @default(true) @map("is_active")
+  @@map("categories")
+}
+model Product {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  categoryId String? @map("category_id") @db.Uuid
+  brandId String? @map("brand_id") @db.Uuid
+  name String @db.VarChar(180)
+  description String?
+  sku String? @db.VarChar(80)
+  barcode String? @db.VarChar(120)
+  status ProductStatus @default(ACTIVE)
+  trackingType TrackingType @default(QUANTITY) @map("tracking_type")
+  sellingPriceMinor BigInt @map("selling_price_minor")
+  minimumSellingPriceMinor BigInt? @map("minimum_selling_price_minor")
+  costPriceMinor BigInt? @map("cost_price_minor")
+  currencyCode String @map("currency_code") @db.Char(3)
+  imageObjectPath String? @map("image_object_path")
+  attributes Json @default("{}")
+  openingStock Decimal? @map("opening_stock") @db.Decimal(18,4)
+  openingStockBranchId String? @map("opening_stock_branch_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business Business @relation(fields: [businessId], references: [id])
+  variants ProductVariant[]
+  balances InventoryBalance[]
+  movements StockMovement[]
+  @@unique([businessId, id])
+  @@index([businessId, status, name])
+  @@map("products")
+}
+model ProductVariant {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  sku String?
+  barcode String?
+  attributes Json @default("{}")
+  sellingPriceMinor BigInt @map("selling_price_minor")
+  costPriceMinor BigInt? @map("cost_price_minor")
+  isActive Boolean @default(true) @map("is_active")
+  product Product @relation(fields: [productId], references: [id])
+  @@unique([businessId, id])
+  @@index([businessId, productId])
+  @@map("product_variants")
+}
+model InventoryBalance {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  quantityOnHand Decimal @default(0) @map("quantity_on_hand") @db.Decimal(18,4)
+  quantityReserved Decimal @default(0) @map("quantity_reserved") @db.Decimal(18,4)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business Business @relation(fields: [businessId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  @@unique([businessId, branchId, productId])
+  @@map("inventory_balances")
+}
+model StockMovement {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  movementType StockMovementType @map("movement_type")
+  quantityDelta Decimal @map("quantity_delta") @db.Decimal(18,4)
+  unitCostMinor BigInt? @map("unit_cost_minor")
+  reference String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  business Business @relation(fields: [businessId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  @@index([businessId, branchId, createdAt])
+  @@map("stock_movements")
+}
+model Supplier {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  name String @db.VarChar(180)
+  email String?
+  phone String?
+  address String?
+  isActive Boolean @default(true) @map("is_active")
+  business Business @relation(fields: [businessId], references: [id])
+  purchases PurchaseOrder[]
+  @@unique([businessId, id])
+  @@map("suppliers")
+}
+model PurchaseOrder {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  supplierId String @map("supplier_id") @db.Uuid
+  status String @default("draft")
+  currencyCode String @map("currency_code") @db.Char(3)
+  totalMinor BigInt @map("total_minor")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  business Business @relation(fields: [businessId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  lines PurchaseOrderLine[]
+  @@unique([businessId, id])
+  @@map("purchase_orders")
+}
+model PurchaseOrderLine {
+  id String @id @default(uuid()) @db.Uuid
+  purchaseOrderId String @map("purchase_order_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  quantity Decimal @db.Decimal(18,4)
+  receivedQuantity Decimal @map("received_quantity") @db.Decimal(18,4)
+  unitCostMinor BigInt @map("unit_cost_minor")
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  @@map("purchase_order_lines")
+}
+model Sale {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  status SaleStatus @default(COMPLETED)
+  receiptNumber String? @map("receipt_number")
+  currencyCode String @map("currency_code") @db.Char(3)
+  subtotalMinor BigInt @map("subtotal_minor")
+  taxMinor BigInt @map("tax_minor")
+  discountMinor BigInt @map("discount_minor")
+  totalMinor BigInt @map("total_minor")
+  paidMinor BigInt @default(0) @map("paid_minor")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  business Business @relation(fields: [businessId], references: [id])
+  items SaleItem[]
+  payments Payment[]
+  @@unique([businessId, id])
+  @@index([businessId, branchId, createdAt])
+  @@map("sales")
+}
+model SaleItem {
+  id String @id @default(uuid()) @db.Uuid
+  saleId String @map("sale_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  productName String @map("product_name")
+  quantity Decimal @db.Decimal(18,4)
+  unitPriceMinor BigInt @map("unit_price_minor")
+  discountMinor BigInt @default(0) @map("discount_minor")
+  lineTotalMinor BigInt @map("line_total_minor")
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  @@map("sale_items")
+}
+model Payment {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  saleId String @map("sale_id") @db.Uuid
+  method PaymentMethod
+  status PaymentStatus @default(PENDING)
+  amountMinor BigInt @map("amount_minor")
+  currencyCode String @map("currency_code") @db.Char(3)
+  providerReference String? @map("provider_reference")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  business Business @relation(fields: [businessId], references: [id])
+  sale Sale @relation(fields: [saleId], references: [id])
+  @@unique([businessId, id])
+  @@index([businessId, status, createdAt])
+  @@map("payments")
+}
+model Refund {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  saleId String @map("sale_id") @db.Uuid
+  status RefundStatus @default(PENDING)
+  amountMinor BigInt @map("amount_minor")
+  reason String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@index([businessId, saleId])
+  @@map("refunds")
+}
+model Subscription {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @unique @map("business_id") @db.Uuid
+  planCode String @map("plan_code")
+  interval BillingInterval
+  status SubscriptionStatus
+  trialEndsAt DateTime? @map("trial_ends_at") @db.Timestamptz(6)
+  currentPeriodEnd DateTime? @map("current_period_end") @db.Timestamptz(6)
+  graceEndsAt DateTime? @map("grace_ends_at") @db.Timestamptz(6)
+  business Business @relation(fields: [businessId], references: [id])
+  @@map("subscriptions")
+}
+model Plan {
+  id String @id @default(uuid()) @db.Uuid
+  code String @unique
+  name String
+  description String
+  isActive Boolean @default(true) @map("is_active")
+  @@map("plans")
+}
+model PlanFeature {
+  id String @id @default(uuid()) @db.Uuid
+  planCode String @map("plan_code")
+  key String
+  enabled Boolean @default(true)
+  limit Int?
+  @@unique([planCode, key])
+  @@map("plan_features")
+}
+model OnboardingProgress {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @unique @map("business_id") @db.Uuid
+  currentStep OnboardingStep @default(BUSINESS_PROFILE) @map("current_step")
+  completedSteps String[] @default([]) @map("completed_steps")
+  skippedSteps String[] @default([]) @map("skipped_steps")
+  status OnboardingStatus @default(NOT_STARTED)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business Business @relation(fields: [businessId], references: [id])
+  @@map("onboarding_progress")
+}
+model AuditLog {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  actorUserId String? @map("actor_user_id") @db.Uuid
+  action String
+  targetType String @map("target_type")
+  targetId String? @map("target_id")
+  requestId String @map("request_id") @db.Uuid
+  metadata Json @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  business Business @relation(fields: [businessId], references: [id])
+  @@index([businessId, createdAt])
+  @@map("audit_logs")
+}
+model ProductImport {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  status ImportStatus @default(QUEUED)
+  totalRows Int @default(0) @map("total_rows")
+  acceptedRows Int @default(0) @map("accepted_rows")
+  rejectedRows Int @default(0) @map("rejected_rows")
+  report Json @default("[]")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@index([businessId, createdAt])
+  @@map("product_imports")
+}
+
+
+// Restored v1.1 entities and v1.3 operational records.
+// Canonical ORM schema: /contracts/schema.prisma. /prisma/schema.prisma is a
+// legacy placeholder and must not be used as the source of truth.
+model Customer {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  name String @db.VarChar(180)
+  email String?
+  phone String?
+  address String?
+  notes String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@unique([businessId, id])
+  @@index([businessId, name])
+  @@map("customers")
+}
+model PlanPrice {
+  id String @id @default(uuid()) @db.Uuid
+  planCode String @map("plan_code")
+  interval BillingInterval
+  amountMinor BigInt @map("amount_minor")
+  currencyCode String @map("currency_code") @db.Char(3)
+  isActive Boolean @default(true) @map("is_active")
+  @@unique([planCode, interval, currencyCode])
+  @@map("plan_prices")
+}
+model IdempotencyRecord {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  idempotencyKey String @map("idempotency_key") @db.VarChar(128)
+  requestHash String @map("request_hash") @db.VarChar(64)
+  status IdempotencyStatus @default(PROCESSING)
+  response Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, createdAt])
+  @@map("idempotency_records")
+}
+model SyncDevice {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  deviceLabel String? @map("device_label")
+  lastSeenAt DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@unique([businessId, id])
+  @@index([businessId, userId])
+  @@map("sync_devices")
+}
+model SyncOperation {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  deviceId String @map("device_id") @db.Uuid
+  clientOperationId String @map("client_operation_id") @db.Uuid
+  payloadHash String @map("payload_hash") @db.VarChar(64)
+  status SyncStatus
+  result Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@unique([businessId, clientOperationId])
+  @@index([businessId, deviceId, createdAt])
+  @@map("sync_operations")
+}
+model DeviceUnit {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  serialNumber String? @map("serial_number")
+  imei1 String? @map("imei_1")
+  imei2 String? @map("imei_2")
+  status DeviceStatus @default(AVAILABLE)
+  attributes Json @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@unique([businessId, id])
+  @@index([businessId, branchId, status])
+  @@map("device_units")
+}
