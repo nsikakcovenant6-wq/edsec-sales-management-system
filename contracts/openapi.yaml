@@ -379,6 +379,9 @@ paths:
       tags: [Products]
       summary: Create product. Cost and selling price fields require their dedicated permissions.
       x-permission: products.create
+      x-field-permissions:
+        selling_price_minor: products.selling_price.update
+        cost_price_minor: products.cost_price.update
       requestBody:
         required: true
         content:
@@ -418,6 +421,10 @@ paths:
       tags: [Products]
       summary: Update product; price fields require independent permissions.
       x-permission: products.update
+      x-field-permissions:
+        selling_price_minor: products.selling_price.update
+        cost_price_minor: products.cost_price.update
+        minimum_selling_price_minor: products.selling_price.update
       requestBody:
         required: true
         content:
@@ -1065,7 +1072,90 @@ components:
         - TENANT_CONTEXT_REQUIRED
         - SYNC_BATCH_TOO_LARGE
         - DISCOUNT_BELOW_COST
+        - PAYLOAD_TOO_LARGE
         - INTERNAL_ERROR
+    PermissionKey:
+      type: string
+      enum:
+        - business.settings.read
+        - business.settings.update
+        - members.read
+        - members.invite
+        - members.update
+        - members.remove
+        - roles.read
+        - roles.manage
+        - dashboard.read
+        - notifications.read
+        - notifications.manage
+        - products.read
+        - products.create
+        - products.update
+        - products.archive
+        - products.import
+        - products.cost_price.view
+        - products.cost_price.update
+        - products.selling_price.update
+        - inventory.read
+        - inventory.adjust
+        - inventory.transfer
+        - inventory.receive
+        - suppliers.read
+        - suppliers.create
+        - suppliers.update
+        - purchases.read
+        - purchases.create
+        - purchases.receive
+        - purchases.cancel
+        - sales.read
+        - sales.create
+        - sales.void
+        - sales.refund
+        - sales.sync
+        - discounts.read
+        - discounts.create
+        - discounts.approve
+        - discount.override_below_cost
+        - payments.read
+        - payments.record
+        - payments.confirm_manual
+        - payments.refund
+        - customers.read
+        - customers.create
+        - customers.update
+        - customers.export
+        - customers.anonymise
+        - credit.read
+        - credit.issue
+        - credit.collect
+        - credit.adjust
+        - expenses.read
+        - expenses.create
+        - expenses.approve
+        - reports.sales.read
+        - reports.finance.read
+        - reports.inventory.read
+        - reports.export
+        - branches.read
+        - branches.manage
+        - cash_sessions.read
+        - cash_sessions.manage
+        - quotations.read
+        - quotations.manage
+        - invoices.read
+        - invoices.manage
+        - subscription.read
+        - subscription.manage
+        - audit.read
+        - ai.analytics.use
+        - ai.reports.configure
+        - platform.businesses.manage
+        - platform.plans.manage
+        - platform.templates.manage
+        - platform.images.manage
+        - platform.payments.read
+        - platform.support.manage
+        - platform.audit.read
     MoneyMinor:
       type: string
       pattern: '^[0-9]+$'
@@ -1164,7 +1254,7 @@ components:
                       permissions:
                         type: array
                         items:
-                          type: string
+                          $ref: '#/components/schemas/PermissionKey'
                       permission_scopes:
                         type: object
                         additionalProperties:
@@ -1511,6 +1601,7 @@ components:
           type: [string, 'null']
     UploadUrlRequest:
       type: object
+      description: After receiving upload_url, client sends raw file bytes using HTTP PUT to that URL. Do not use supabase-js uploadToSignedUrl for this contract.
       required: [purpose, file_name, content_type, size_bytes]
       properties:
         purpose:
