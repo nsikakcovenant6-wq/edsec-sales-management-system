@@ -8,3 +8,4 @@
 - 2026-11-07: Fixed YAML indentation in the product import 202 response; rerun CI validation.
 - 2026-11-07: Rebuilt ProductWrite schema, added onboarding progress to membership response and completed missing Prisma enum declarations.
 - 2026-11-07: Fixed PurchaseOrderLine quantity_received pattern syntax after CI parser feedback.
+- 2026-11-07: Prisma 7 compatibility fixes: multiline enum declarations, added missing IdempotencyStatus/SyncStatus/DeviceStatus enums, and moved DATABASE_URL into prisma.config.ts. Canonical schema remains /prisma/schema.prisma.
