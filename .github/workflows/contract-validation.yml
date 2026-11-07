@@ -33,6 +33,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install Prisma CLI package for config resolution
+        run: npm install --no-save prisma@7.9.1
       - name: Validate canonical schema
         env:
           DATABASE_URL: postgresql://contract:contract@127.0.0.1:5432/contract
