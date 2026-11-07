@@ -3,3 +3,7 @@ export * from "./config/env.js";
 export * from "./http/errors.js";
 export * from "./money/minor.js";
 export * from "./permissions/authorize.js";
+export * from "./businesses/categories.js";
+export * from "./businesses/create-business.js";
+export * from "./onboarding/progress.js";
+export * from "./profiles/profile.js";
