@@ -8,3 +8,4 @@ export * from "./businesses/create-business.js";
 export * from "./onboarding/progress.js";
 export * from "./profiles/profile.js";
 export * from "./http/routes.js";
+export * from "./db/repositories.js";
