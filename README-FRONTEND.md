@@ -21,7 +21,7 @@ npm run build
 
 ## Current foundation scope
 
-The current application is a UI-only workspace shell. Navigation destinations are local frontend routes with placeholder states. No backend API calls, authentication, role names, permission keys, business records, subscription rules or live metrics are implemented in this phase.
+The application includes a UI-only workspace shell plus account and onboarding previews. Account routes: `/auth/register`, `/auth/verify-email`, `/auth/login`, `/auth/forgot-password` and `/auth/reset-password`. Onboarding routes: `/onboarding/welcome`, `/onboarding/business`, `/onboarding/categories`, `/onboarding/branches` and `/onboarding/complete`. These screens use browser-native form validation and local presentation state only. No account is created, OTP is verified, recovery email is sent, password is changed or business data is persisted. No backend API calls, role names, permission keys, subscription rules or live metrics are implemented.
 
 The preview notice is intentional: the workspace contains no live business data. The permission utilities accept permission identifiers supplied by a future approved contract; they do not define permission identifiers or role presets.
 
@@ -36,3 +36,4 @@ The preview notice is intentional: the workspace contains no live business data.
 ## Contract boundary
 
 Do not wire API requests or Supabase Auth until the Backend Lead publishes the stable OpenAPI and confirms the authentication/session contract. Backend-owned files are maintained by the Backend Lead.
+\n\n## Continuous integration\n\n`.github/workflows/frontend-ci.yml` runs dependency installation, ESLint, TypeScript checking, Vitest and the Next.js production build on GitHub-hosted Ubuntu runners for relevant pull request and feature-branch changes. The workflow must complete successfully before checks are reported as passing.\n
