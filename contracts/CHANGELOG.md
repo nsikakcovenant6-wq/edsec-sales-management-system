@@ -14,3 +14,4 @@
 - 2026-11-07: Replaced incrementally patched OpenAPI draft with a clean single-source v1.3 specification; includes all 33 paths, 44 operations, explicit permissions, feature gates, POS checkout and sync schemas.
 - 2026-11-07: Added PermissionKey enum, field-level price permission metadata, PAYLOAD_TOO_LARGE code and explicit signed-upload instruction (HTTP PUT to upload_url).
 - 2026-11-07: Restored Prisma ProductTemplate, TemplateImage (licence/source/attribution), and PlatformAdmin models; schema mirrors kept identical.
+- 2026-11-07: Aligned Prisma tracking/payment enums with wire values; added BusinessCategory and Brand models; documented opening-stock permission and client price snapshot validation.
