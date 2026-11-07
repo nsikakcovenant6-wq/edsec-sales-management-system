@@ -54,11 +54,11 @@ jobs:
       - name: Generate and apply schema migration in CI PostgreSQL
         run: |
           npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > /tmp/edsec-schema.sql
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /tmp/edsec-schema.sql
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/edsec_ci" -v ON_ERROR_STOP=1 -f /tmp/edsec-schema.sql
       - name: Apply tenant RLS policies
-        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/tenant-rls.sql
+        run: psql "postgresql://postgres:postgres@127.0.0.1:5432/edsec_ci" -v ON_ERROR_STOP=1 -f sql/tenant-rls.sql
       - name: Test cross-tenant RLS isolation
-        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/tenant-rls-smoke.sql
+        run: psql "postgresql://postgres:postgres@127.0.0.1:5432/edsec_ci" -v ON_ERROR_STOP=1 -f sql/tenant-rls-smoke.sql
       - name: Typecheck
         run: npm run typecheck
       - name: Unit tests
