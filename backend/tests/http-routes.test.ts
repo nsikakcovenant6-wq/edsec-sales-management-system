@@ -63,7 +63,8 @@ describe("Phase 1 REST handlers", () => {
     const response = await handlers.createBusiness(new Request("https://example.test/api/v1/businesses", {
       method: "POST", headers: { authorization: "Bearer token", "content-type": "application/json" }, body: "{",
     }));
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { code: "VALIDATION_ERROR" } });
     expect(deps.businesses.transaction).not.toHaveBeenCalled();
   });
 
