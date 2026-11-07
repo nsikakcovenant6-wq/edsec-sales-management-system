@@ -382,6 +382,7 @@ paths:
       x-field-permissions:
         selling_price_minor: products.selling_price.update
         cost_price_minor: products.cost_price.update
+        opening_stock: inventory.adjust
       requestBody:
         required: true
         content:
@@ -1568,6 +1569,7 @@ components:
                 $ref: '#/components/schemas/Quantity'
               unit_price_minor:
                 $ref: '#/components/schemas/MoneyMinor'
+                description: Client catalogue snapshot only; server recalculates and rejects PRICE_CHANGED rather than trusting this value.
               discount_minor:
                 $ref: '#/components/schemas/MoneyMinor'
         discount_minor:
@@ -1580,7 +1582,7 @@ components:
             properties:
               method:
                 type: string
-                enum: [cash, bank_transfer, card, paystack, customer_credit]
+                enum: [cash, bank_transfer, card_terminal, paystack, customer_credit]
               amount_minor:
                 $ref: '#/components/schemas/MoneyMinor'
               provider_reference:
