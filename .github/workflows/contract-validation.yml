@@ -38,4 +38,4 @@ jobs:
       - name: Validate Prisma schema
         env:
           DATABASE_URL: postgresql://contract:contract@127.0.0.1:5432/contract
-        run: npx --yes prisma@7.9.1 validate --schema contracts/schema.prisma
+        run: npx --yes prisma@7.9.1 validate --schema prisma/schema.prisma
