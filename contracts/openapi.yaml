@@ -560,7 +560,7 @@ paths:
           application/json:
             schema: { type: object, required: [object_path, file_name], properties: { object_path: { type: string }, file_name: { type: string }, branch_id: { type: string, format: uuid } } }
       responses:
-        '202': { description: Queued, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } }
+        '202': { description: Queued, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
   /businesses/{business_id}/products/imports/{import_id}:
     parameters:
