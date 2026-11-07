@@ -152,7 +152,7 @@ export class PrismaBusinessProvisioningRepository implements BusinessProvisionin
 export class PrismaBusinessCategoryRepository implements BusinessCategoryRepository {
   constructor(private readonly prisma: PrismaClient, private readonly userId: string) {}
   transaction<T>(work: Parameters<BusinessCategoryRepository["transaction"]>[0]): Promise<T> {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction<T>(async (tx) => {
       let contextInstalled = false;
       const scoped = {
         assertCategoriesExist: async (categoryIds: string[]) => {
