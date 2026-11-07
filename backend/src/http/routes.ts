@@ -36,6 +36,25 @@ type JsonObject = Record<string, unknown>;
 function json(data: unknown, status = 200, requestId = "unknown"): Response {
   return Response.json({ data, meta: { request_id: requestId } }, { status });
 }
+
+function businessDto(value: unknown): Record<string, unknown> {
+  const row = value as Record<string, unknown>;
+  return {
+    id: row.id, name: row.name, email: row.email, phone: row.phone, address: row.address,
+    logo_object_path: row.logoObjectPath, country_code: row.countryCode, currency_code: row.currencyCode,
+    timezone: row.timezone, vat_enabled: row.vatEnabled, vat_rate_bps: row.vatRateBps,
+    tax_mode: typeof row.taxMode === "string" ? row.taxMode.toLowerCase() : row.taxMode,
+    default_branch_id: row.defaultBranchId,
+  };
+}
+function branchDto(value: unknown): Record<string, unknown> {
+  const row = value as Record<string, unknown>;
+  return { id: row.id, name: row.name, code: row.code, address: row.address, is_active: row.isActive, is_default: row.isDefault };
+}
+function onboardingDto(value: OnboardingProgress): Record<string, unknown> {
+  return { current_step: value.currentStep, completed_steps: value.completedSteps, skipped_steps: value.skippedSteps, status: value.status };
+}
+
 function readRequestId(deps: RouteDependencies): string {
   return deps.requestId?.() ?? crypto.randomUUID();
 }
@@ -77,9 +96,8 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         const user = await identity(request, deps);
         const profile = await getOrCreateProfile(deps.profiles, user);
         return json({
-          id: profile.id, auth_user_id: profile.authUserId, email: profile.email,
-          full_name: profile.fullName, phone: profile.phone,
-          email_verified: Boolean(profile.emailVerifiedAt),
+          user_id: profile.id, email: profile.email,
+          full_name: profile.fullName,
           memberships: await deps.access.listMemberships(profile.id),
         }, 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
@@ -88,7 +106,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
 
     listCategories: async (): Promise<Response> => {
       const requestId = readRequestId(deps);
-      try { return json(await deps.categoryCatalog.listCategories(), 200, requestId); }
+      try { return json((await deps.categoryCatalog.listCategories()).map((category) => ({ id: category.id, name: category.name, slug: category.slug, parent_id: category.parentId, feature_flags: category.featureFlags })), 200, requestId); }
       catch (error) { return errorResponse(error, requestId); }
     },
 
@@ -101,7 +119,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         await deps.access.assertPermission({ userId: profile.id, businessId, permission: "business.settings.read" });
         const business = await deps.workspace(profile.id).getBusiness(businessId);
         if (!business) throw new ApiError(404, "NOT_FOUND", "Business was not found");
-        return json(business, 200, requestId);
+        return json(businessDto(business), 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
 
@@ -129,7 +147,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         if (patch.name !== undefined && (patch.name.length < 2 || patch.name.length > 160)) throw new ApiError(400, "VALIDATION_ERROR", "Business name must be 2–160 characters");
         if (patch.currencyCode !== undefined && !/^[A-Z]{3}$/.test(patch.currencyCode)) throw new ApiError(400, "VALIDATION_ERROR", "Currency code must be three uppercase letters");
         if (patch.vatRateBps !== undefined && (!Number.isInteger(patch.vatRateBps) || patch.vatRateBps < 0 || patch.vatRateBps > 10000)) throw new ApiError(400, "VALIDATION_ERROR", "VAT rate must be between 0 and 10000 basis points");
-        return json(await deps.workspace(profile.id).updateBusiness(businessId, patch), 200, requestId);
+        return json(businessDto(await deps.workspace(profile.id).updateBusiness(businessId, patch)), 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
 
@@ -143,7 +161,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         const url = new URL(request.url);
         const limit = Number(url.searchParams.get("limit") ?? 25);
         const page = await deps.workspace(profile.id).listBranches(businessId, url.searchParams.get("cursor") ?? undefined, Number.isFinite(limit) ? limit : 25);
-        return json(page, 200, requestId);
+        return json({ items: page.items.map(branchDto), next_cursor: page.next_cursor }, 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
 
@@ -159,12 +177,12 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         if (typeof input.name !== "string" || !input.name.trim() || typeof input.code !== "string" || !input.code.trim()) {
           throw new ApiError(400, "VALIDATION_ERROR", "Branch name and code are required");
         }
-        return json(await deps.workspace(profile.id).createBranch(businessId, {
+        return json(branchDto(await deps.workspace(profile.id).createBranch(businessId, {
           name: input.name.trim(), code: input.code.trim(),
           address: input.address === null || typeof input.address === "string" ? input.address : undefined,
           isActive: typeof input.is_active === "boolean" ? input.is_active : undefined,
           isDefault: typeof input.is_default === "boolean" ? input.is_default : undefined,
-        }), 201, requestId);
+        })), 201, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
 
@@ -184,7 +202,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         if (typeof input.is_active === "boolean") patch.isActive = input.is_active;
         if (typeof input.is_default === "boolean") patch.isDefault = input.is_default;
         if (Object.keys(patch).length === 0) throw new ApiError(400, "VALIDATION_ERROR", "At least one branch field is required");
-        return json(await deps.workspace(profile.id).updateBranch(businessId, branchId, patch), 200, requestId);
+        return json(branchDto(await deps.workspace(profile.id).updateBranch(businessId, branchId, patch)), 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
 
@@ -202,7 +220,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
           vatEnabled: typeof input.vat_enabled === "boolean" ? input.vat_enabled : undefined,
           vatRateBps: typeof input.vat_rate_bps === "number" ? input.vat_rate_bps : undefined,
         });
-        return json({ business: result.business, default_branch: result.defaultBranch }, 201, requestId);
+        return json({ business: businessDto(result.business), default_branch: branchDto(result.defaultBranch) }, 201, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
 
@@ -231,7 +249,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         await deps.access.assertPermission({ userId: profile.id, businessId, permission: "business.settings.read" });
         const progress = await deps.onboarding(profile.id).getProgress(businessId);
         if (!progress) throw new ApiError(404, "NOT_FOUND", "Onboarding progress was not found");
-        return json(progress, 200, requestId);
+        return json(onboardingDto(progress), 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
 
@@ -252,7 +270,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         if (input.current_step !== undefined && !patch.currentStep) throw new ApiError(400, "VALIDATION_ERROR", "current_step is invalid");
         if (input.completed_steps !== undefined && !patch.completedSteps) throw new ApiError(400, "VALIDATION_ERROR", "completed_steps must be an array of steps");
         if (input.skipped_steps !== undefined && !patch.skippedSteps) throw new ApiError(400, "VALIDATION_ERROR", "skipped_steps must be an array of steps");
-        return json(await patchOnboardingProgress(deps.onboarding(profile.id), businessId, current, patch), 200, requestId);
+        return json(onboardingDto(await patchOnboardingProgress(deps.onboarding(profile.id), businessId, current, patch)), 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
   };
