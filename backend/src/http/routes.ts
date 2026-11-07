@@ -91,8 +91,9 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
       const requestId = readRequestId(deps);
       try {
         const user = await identity(request, deps);
-        await deps.access.assertMember({ userId: user.id, businessId });
-        await deps.access.assertPermission({ userId: user.id, businessId, permission: "business.settings.update" });
+        const profile = await getOrCreateProfile(deps.profiles, user);
+        await deps.access.assertMember({ userId: profile.id, businessId });
+        await deps.access.assertPermission({ userId: profile.id, businessId, permission: "business.settings.update" });
         const input = await body(request);
         if (!Array.isArray(input.category_ids) || !input.category_ids.every((id) => typeof id === "string")) {
           throw new ApiError(400, "VALIDATION_ERROR", "category_ids must be an array of category IDs", { category_ids: "invalid" });
@@ -106,8 +107,9 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
       const requestId = readRequestId(deps);
       try {
         const user = await identity(request, deps);
-        await deps.access.assertMember({ userId: user.id, businessId });
-        await deps.access.assertPermission({ userId: user.id, businessId, permission: "business.settings.read" });
+        const profile = await getOrCreateProfile(deps.profiles, user);
+        await deps.access.assertMember({ userId: profile.id, businessId });
+        await deps.access.assertPermission({ userId: profile.id, businessId, permission: "business.settings.read" });
         const progress = await deps.onboarding.getProgress(businessId);
         if (!progress) throw new ApiError(404, "NOT_FOUND", "Onboarding progress was not found");
         return json(progress, 200, requestId);
