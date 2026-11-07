@@ -2,7 +2,7 @@
 ## Roles, permissions, architecture decisions and changelog
 
 ### Contract revision
-v1.2.0 — 7 November 2026. This revision responds to frontend assessment blockers A1–A12. POS/offline requests B1–B16 are explicitly deferred to the next contract revision.
+v1.3.0 — 7 November 2026. Backward-compatible reconciliation of the v1.1 operation set with v1.2 decisions and POS/offline requirements. Draft; not stable until validation and Product Owner approval.
 
 ### A1 — Authentication/session: accepted; direct Supabase Auth
 The frontend uses `@supabase/supabase-js` directly for authentication:
@@ -94,3 +94,101 @@ Platform permissions are separate: `platform.businesses.manage`, `platform.plans
 
 ### Changelog
 - 2026-11-07: v1.2.0 resolves frontend blockers A1–A12; adds direct Supabase Auth decision, typed response schemas, payment initiation, string money, subscription entitlements, branches, scoped permissions, category tree, onboarding enum, signed uploads, CORS and error status mapping.
+
+
+## v1.1 baseline restored — compatibility and role/scope matrix
+
+The v1.1 operation inventory is the compatibility baseline. The v1.3 OpenAPI file restores the missing business, category, plan, template, product, import, inventory, purchase receiving, sales, payment confirmation, active-business and sync operations. Auth routes from v1.1 are intentionally superseded by the direct Supabase Auth approach described under A1; the backend does not proxy credentials or OTPs. Any other endpoint omission must be recorded here before stability.
+
+### Default role → permission → scope matrix
+
+Scope meanings: `business` = all business records; `assigned_branches` = only assigned branch IDs; `own_records` = records created/owned by the member; `business_or_own` = shared business records plus own records. Backend enforces the scope on every request.
+
+| Permission/capability | Owner | Manager | Cashier | Stock keeper | Accountant |
+|---|---|---|---|---|---|
+| business.settings.read / update | business / business | assigned_branches / assigned_branches | — | — | business / — |
+| members.read / invite / update / remove | business | business / limited invite / limited update / — | — | — | — |
+| roles.read / manage | business / business | business / delegated | — | — | — |
+| dashboard.read | business | assigned_branches | assigned_branches | assigned_branches | assigned_branches |
+| products.read | business | business | assigned_branches | business | business |
+| products.create / update / archive | business | business / approval policy | — | assigned_branches / assigned_branches / — | — |
+| products.cost_price.view / update | business / business | business / approval | — | — | business / — |
+| products.selling_price.update | business | approval | — | — | — |
+| inventory.read | business | business | assigned_branches | business | business |
+| inventory.adjust / transfer / receive | business | approval / approval / business | — | assigned_branches / assigned_branches / assigned_branches | — |
+| suppliers.read / create / update | business | business / business / business | — | business / business / business | business / — / — |
+| purchases.read / create / receive / cancel | business | business / business / business / approval | — | business / — / assigned_branches / — | business / — / — / — |
+| sales.read | business | business | assigned_branches | — | business |
+| sales.create / void / refund | business | business / approval / approval | assigned_branches / — / — | — | — |
+| payments.read / record / confirm_manual / refund | business | business / business / approval / approval | assigned_branches / assigned_branches / — / — | — | business / — / business / approval |
+| customers.read / create / update / export / anonymise | business | business | assigned_branches / assigned_branches / assigned_branches / — / — | — | business / — / — / business / approval |
+| credit.read / issue / collect / adjust | business | business / approval / business / approval | assigned_branches / limited / assigned_branches / — | — | business / — / — / approval |
+| expenses.read / create / approve | business | business / assigned_branches / approval | — | — | business / business / approval |
+| reports.sales.read / finance.read / inventory.read / export | business | assigned_branches / limited / assigned_branches / assigned_branches | assigned_branches / — / — / — | — / — / assigned_branches / — | business / business / business / business |
+| branches.read / manage | business / business | business / delegated | assigned_branches / — | assigned_branches / — | business / — |
+| sales.sync | business | assigned_branches | assigned_branches | — | — |
+| subscription.read / manage | business / business | business / — | — | — | business / — |
+| audit.read | business | assigned_branches | — | — | assigned_branches |
+| ai.analytics.use / ai.reports.configure | business / business | plan+permission / plan+permission | — | — | plan+permission / plan+permission |
+
+For the specific question `sales.read`: the default Cashier receives `sales.read` with `assigned_branches` scope, so the cashier can read sales from assigned branches only. The default Manager and Accountant scopes are also constrained as shown; an Owner has business scope. These defaults are seed policy, not hard-coded role-name checks: the permission grant and scope are stored and enforced server-side.
+
+Platform administrator permissions are separate and never inherited from business roles: `platform.businesses.manage`, `platform.plans.manage`, `platform.templates.manage`, `platform.images.manage`, `platform.payments.read`, `platform.support.manage`, `platform.audit.read`. Support access requires a time-limited, purpose-bound audited grant; no impersonation.
+
+### Restored permission keys
+The following v1.1 keys remain supported and are not removed: `customers.export`, `customers.anonymise`, `credit.adjust`, `ai.reports.configure`. They must be present in the permission enum/catalogue and role seeding.
+
+### Restored offline conflict table
+
+| Sync condition | Server outcome | Client handling |
+|---|---|---|
+| Sufficient stock | Accept atomically; deduct stock | Mark synced only after server receipt |
+| Stock insufficient | Reject `STOCK_INSUFFICIENT` | Keep rejected item visible; manager edits/cancels; no silent backorder |
+| Price changed | Reject `PRICE_CHANGED` | Display old/new price; require human reconfirmation and a new operation ID |
+| Product archived/deleted | Reject `PRODUCT_ARCHIVED` | Replace item or cancel |
+| Subscription expired | Reject `SUBSCRIPTION_INACTIVE`, subject to configured grace policy | Prompt renewal; no false success |
+| Same operation/key and same payload | Return original idempotent result | Do not create a duplicate |
+| Same key with different payload | Reject `IDEMPOTENCY_KEY_REUSED` | New key only for a genuinely new operation |
+
+Offline payment must never represent Paystack/card as verified. Cash can be recorded locally; bank transfer remains pending until an authorised manual confirmation. Server allocates the final receipt number after accepting the operation. Batch maximum is 50 operations; each operation is independently accepted/rejected.
+
+### Restored RLS and tenant isolation requirements
+
+- Every tenant-owned table carries `business_id`, including child records where practical.
+- Enable PostgreSQL RLS on every tenant-owned table.
+- Verify Supabase JWT, resolve active membership and permissions, then set transaction-local `app.user_id`, `app.business_id` and `app.platform_admin` only after trusted server validation.
+- Runtime Prisma role is `NOBYPASSRLS`; never use `postgres` or Supabase `service_role` for normal tenant requests.
+- RLS policies use tenant context plus membership checks; INSERT/UPDATE policies require `WITH CHECK`; UPDATE requires both `USING` and `WITH CHECK`.
+- Do not trust URL/body business IDs as tenant proof. Use composite tenant-safe foreign keys.
+- Revoke direct browser DML to tenant tables; all normal writes pass through the API.
+- Audit logs and stock movements are append-only, enforced by DB privileges/triggers.
+- Automated integration tests must attempt cross-tenant SELECT, INSERT, UPDATE and DELETE and prove isolation.
+- Use transaction-local context inside the same database transaction as tenant queries; never session-level context with pooled connections.
+
+### Restored assumptions and owner decisions
+
+1. Business ID in a URL is a selector only; membership and permission are revalidated on every request.
+2. A user may belong to multiple businesses; the client chooses an active business from verified memberships and stores that selection for the session. Server validates every selection.
+3. Branch is required for branch-scoped sales, stock and receipt numbering.
+4. Money is integer minor units in PostgreSQL and decimal strings over JSON; NGN exponent is 2. No JavaScript floating-point money arithmetic.
+5. VAT is stored in basis points; 750 bps is the Nigeria default configuration, with inclusive/exclusive tax mode explicitly stored.
+6. Starter monthly, 14-day trial; Professional monthly/quarterly/annual; Enterprise quote-based. Exact prices are owner-configurable and must satisfy discount invariants.
+7. Product templates are global catalogue records; copied products become tenant-owned with zero stock.
+8. Product image licence, source and attribution metadata are mandatory for published template images.
+9. Offline support is limited to POS sale creation/sync. Admin, reports, onboarding, settings and subscription operations remain online-only.
+10. Sync batch maximum is 50; each operation uses UUID client_operation_id and is independently processed.
+11. Client timestamps are informational and never override server inventory/price ordering.
+12. Customer export/deletion follows legal/accounting retention; where deletion is not lawful, identifiers are anonymised.
+13. Platform support uses scoped audited grants, no impersonation.
+14. AI uses an allowlisted tenant-scoped query catalogue; the model receives prepared results with citations and date ranges only.
+
+Product Owner decisions still outstanding: exact Starter/Professional prices; enterprise quote-only vs minimum; trial payment method; grace duration (proposal 3 days); backorders (default reject); offline price-conflict rejection (recommended); manual transfer confirmation and dual-approval threshold; VAT default enablement; receipt format/reset policy; retention periods; platform admin staff-role separation; initial category catalogue and pharmacy controls.
+
+### Contract decisions resolving the review
+
+- Business creation accepts profile only; category assignment is a separate required onboarding step via multi-category `PUT /businesses/{business_id}/categories`.
+- POS checkout is created by `POST /sales` with embedded tender intents. The server persists the sale and payment rows atomically; Paystack tender creates a pending payment and returns redirect data. A payment is never created without an existing sale. The separate `POST /payments` records subsequent/credit/manual tender against an existing sale.
+- Upload clients request a signed URL then PUT bytes to `upload_url`; after upload they submit `object_path` when saving Business/Product. Purpose-based permission: business_logo → `business.settings.update`; product_image → `products.create` or `products.update`; import_file → `products.import`.
+- `/me` returns memberships and each membership's onboarding state/progress. Active business is selected by `PUT /me/active-business`; no implicit server-side global active-business preference is assumed.
+- Unsigned money fields use `MoneyMinor`; only explicit deltas use `SignedMoneyMinor`.
+- Quantity strings allow up to four fractional digits (Decimal(18,4)); JSON regex escaping must produce the regex `^[0-9]+(\\.[0-9]{1,4})?$` for positive quantities and `^-?[0-9]+(\\.[0-9]{1,4})?$` for signed deltas.
