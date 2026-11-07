@@ -1,0 +1,41 @@
+name: Contract validation
+
+on:
+  pull_request:
+    branches:
+      - backend/main
+    paths:
+      - "contracts/**"
+      - ".github/workflows/contract-validation.yml"
+  push:
+    branches:
+      - backend/contracts-v1.3-reconciliation
+    paths:
+      - "contracts/**"
+
+jobs:
+  openapi:
+    name: OpenAPI lint and reference validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Redocly CLI
+        run: npm install --global @redocly/cli
+      - name: Lint OpenAPI contract
+        run: redocly lint contracts/openapi.yaml --extends=recommended
+
+  prisma:
+    name: Prisma schema validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate Prisma schema
+        env:
+          DATABASE_URL: postgresql://contract:contract@127.0.0.1:5432/contract
+        run: npx --yes prisma@7.9.1 validate --schema contracts/schema.prisma
