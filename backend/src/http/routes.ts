@@ -175,6 +175,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         const profile = await getOrCreateProfile(deps.profiles, user);
         await deps.access.assertMember({ userId: profile.id, businessId });
         await deps.access.assertPermission({ userId: profile.id, businessId, permission: "branches.manage" });
+        await deps.access.assertFeature({ userId: profile.id, businessId, feature: "multi_branch" });
         const input = await body(request);
         const patch: BranchWrite = {};
         if (typeof input.name === "string") patch.name = input.name.trim();
