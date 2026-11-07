@@ -28,7 +28,7 @@ export function getV1RouteHandlers() {
     categories: (profileId) => new PrismaBusinessCategoryRepository(prisma, profileId),
     onboarding: (profileId) => new PrismaOnboardingRepository(prisma, profileId),
     access,
-    categoryCatalog: new PrismaWorkspaceRepository(prisma, "").listCategories.bind(new PrismaWorkspaceRepository(prisma, "")),
+    categoryCatalog: { listCategories: () => new PrismaWorkspaceRepository(prisma, "").listCategories() },
     workspace: (profileId) => new PrismaWorkspaceRepository(prisma, profileId),
   });
   return runtime;
