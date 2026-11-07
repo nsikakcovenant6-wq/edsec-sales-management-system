@@ -53,7 +53,7 @@ jobs:
         run: npm run prisma:generate
       - name: Generate and apply schema migration in CI PostgreSQL
         run: |
-          npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /tmp/edsec-schema.sql
+          npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > /tmp/edsec-schema.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /tmp/edsec-schema.sql
       - name: Apply tenant RLS policies
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/tenant-rls.sql
