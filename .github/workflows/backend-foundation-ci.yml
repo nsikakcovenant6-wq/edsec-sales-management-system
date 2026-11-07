@@ -31,6 +31,10 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Verify canonical schema mirror
+        run: cmp ../prisma/schema.prisma prisma/schema.prisma
+      - name: Validate Prisma schema
+        run: npm run db:validate
       - name: Generate Prisma client
         run: npm run prisma:generate
       - name: Typecheck
