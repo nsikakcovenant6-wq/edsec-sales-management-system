@@ -8,7 +8,7 @@ function dependencies() {
   const categories = { transaction: vi.fn() };
   const onboarding = { getProgress: vi.fn(), updateProgress: vi.fn() };
   const access = { listMemberships: vi.fn().mockResolvedValue([]), assertMember: vi.fn(), assertPermission: vi.fn(), assertFeature: vi.fn() };
-  const categoryCatalog = { listCategories: vi.fn().mockResolvedValue([]) };
+  const categoryCatalog = { listCategories: vi.fn().mockResolvedValue([] as Array<{ id: string; name: string; slug: string; parentId: string | null; featureFlags: string[] }>) };
   const workspace = () => ({
     getBusiness: vi.fn(), updateBusiness: vi.fn(), listBranches: vi.fn(),
     createBranch: vi.fn(), updateBranch: vi.fn(),
