@@ -107,6 +107,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
       try {
         const user = await identity(request, deps);
         await deps.access.assertMember({ userId: user.id, businessId });
+        await deps.access.assertPermission({ userId: user.id, businessId, permission: "business.settings.read" });
         const progress = await deps.onboarding.getProgress(businessId);
         if (!progress) throw new ApiError(404, "NOT_FOUND", "Onboarding progress was not found");
         return json(progress, 200, requestId);
