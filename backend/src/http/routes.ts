@@ -215,6 +215,9 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         if (typeof input.name !== "string") throw new ApiError(400, "VALIDATION_ERROR", "Business name is required", { name: "required" });
         const result = await createBusiness(deps.businesses, {
           ownerUserId: profile.id, emailVerified: user.emailVerified, name: input.name,
+          email: typeof input.email === "string" ? input.email : null,
+          phone: typeof input.phone === "string" ? input.phone : null,
+          address: typeof input.address === "string" ? input.address : null,
           currencyCode: typeof input.currency_code === "string" ? input.currency_code : undefined,
           timezone: typeof input.timezone === "string" ? input.timezone : undefined,
           vatEnabled: typeof input.vat_enabled === "boolean" ? input.vat_enabled : undefined,
