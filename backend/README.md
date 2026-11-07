@@ -18,3 +18,10 @@ This package contains server-only authentication verification, tenant context, p
 
 ## RLS SQL
 `sql/tenant-rls.sql` is a policy migration script to apply after the initial schema DDL migration. It has not been applied to a live database. Cross-tenant SQL integration tests still require the EDSEC Supabase/PostgreSQL project.
+
+
+## Phase 0 implementation status
+
+The server-only foundation currently includes Supabase token verification, transaction-local tenant context, scoped permission checks, BigInt money parsing, quantity precision checks, append-only audit writer and an initial tenant RLS SQL policy script.
+
+The RLS SQL is a reviewable migration artifact only. It has not been applied to a live EDSEC database. Cross-tenant database integration tests require an EDSEC Supabase/PostgreSQL project and a non-BYPASSRLS runtime role.
