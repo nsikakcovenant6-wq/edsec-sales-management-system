@@ -19,6 +19,7 @@ enum PaymentStatus { PENDING CONFIRMED FAILED REVERSED }
 enum SaleStatus { COMPLETED PARTIALLY_PAID PARTIALLY_REFUNDED VOIDED REFUNDED }
 enum TaxMode { INCLUSIVE EXCLUSIVE }
 enum OnboardingStatus { NOT_STARTED IN_PROGRESS COMPLETED }
+enum OnboardingStep { BUSINESS_PROFILE BUSINESS_CATEGORY BRANCH_SETUP STORE_CONFIGURATION PRODUCT_TEMPLATES PRODUCT_IMPORT SUBSCRIPTION_SELECTION TEAM_INVITATION ONBOARDING_COMPLETE }
 enum ImportStatus { QUEUED VALIDATING PROCESSING COMPLETED PARTIAL_SUCCESS FAILED }
 enum RefundStatus { PENDING APPROVED PROCESSED REJECTED }
 enum StockMovementType { OPENING PURCHASE_RECEIPT SALE_RETURN SALE_VOID TRANSFER_IN TRANSFER_OUT ADJUSTMENT_IN ADJUSTMENT_OUT WRITE_OFF }
@@ -149,6 +150,7 @@ model Product {
   id String @id @default(uuid()) @db.Uuid
   businessId String @map("business_id") @db.Uuid
   categoryId String? @map("category_id") @db.Uuid
+  brandId String? @map("brand_id") @db.Uuid
   name String @db.VarChar(180)
   description String?
   sku String? @db.VarChar(80)
@@ -156,9 +158,13 @@ model Product {
   status ProductStatus @default(ACTIVE)
   trackingType TrackingType @default(QUANTITY) @map("tracking_type")
   sellingPriceMinor BigInt @map("selling_price_minor")
+  minimumSellingPriceMinor BigInt? @map("minimum_selling_price_minor")
   costPriceMinor BigInt? @map("cost_price_minor")
   currencyCode String @map("currency_code") @db.Char(3)
   imageObjectPath String? @map("image_object_path")
+  attributes Json @default("{}")
+  openingStock Decimal? @map("opening_stock") @db.Decimal(18,4)
+  openingStockBranchId String? @map("opening_stock_branch_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   business Business @relation(fields: [businessId], references: [id])
@@ -341,10 +347,10 @@ model PlanFeature {
 model OnboardingProgress {
   id String @id @default(uuid()) @db.Uuid
   businessId String @unique @map("business_id") @db.Uuid
-  currentStep String @map("current_step")
+  currentStep OnboardingStep @default(BUSINESS_PROFILE) @map("current_step")
   completedSteps String[] @default([]) @map("completed_steps")
   skippedSteps String[] @default([]) @map("skipped_steps")
-  status String @default("not_started")
+  status OnboardingStatus @default(NOT_STARTED)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   business Business @relation(fields: [businessId], references: [id])
   @@map("onboarding_progress")
@@ -374,4 +380,85 @@ model ProductImport {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   @@index([businessId, createdAt])
   @@map("product_imports")
+}
+
+
+// Restored v1.1 entities and v1.3 operational records.
+// Canonical ORM schema: /contracts/schema.prisma. /prisma/schema.prisma is a
+// legacy placeholder and must not be used as the source of truth.
+model Customer {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  name String @db.VarChar(180)
+  email String?
+  phone String?
+  address String?
+  notes String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@unique([businessId, id])
+  @@index([businessId, name])
+  @@map("customers")
+}
+model PlanPrice {
+  id String @id @default(uuid()) @db.Uuid
+  planCode String @map("plan_code")
+  interval BillingInterval
+  amountMinor BigInt @map("amount_minor")
+  currencyCode String @map("currency_code") @db.Char(3)
+  isActive Boolean @default(true) @map("is_active")
+  @@unique([planCode, interval, currencyCode])
+  @@map("plan_prices")
+}
+model IdempotencyRecord {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  idempotencyKey String @map("idempotency_key") @db.VarChar(128)
+  requestHash String @map("request_hash") @db.VarChar(64)
+  status IdempotencyStatus @default(PROCESSING)
+  response Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, createdAt])
+  @@map("idempotency_records")
+}
+model SyncDevice {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  deviceLabel String? @map("device_label")
+  lastSeenAt DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@unique([businessId, id])
+  @@index([businessId, userId])
+  @@map("sync_devices")
+}
+model SyncOperation {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  deviceId String @map("device_id") @db.Uuid
+  clientOperationId String @map("client_operation_id") @db.Uuid
+  payloadHash String @map("payload_hash") @db.VarChar(64)
+  status SyncStatus
+  result Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@unique([businessId, clientOperationId])
+  @@index([businessId, deviceId, createdAt])
+  @@map("sync_operations")
+}
+model DeviceUnit {
+  id String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  serialNumber String? @map("serial_number")
+  imei1 String? @map("imei_1")
+  imei2 String? @map("imei_2")
+  status DeviceStatus @default(AVAILABLE)
+  attributes Json @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  @@unique([businessId, id])
+  @@index([businessId, branchId, status])
+  @@map("device_units")
 }
