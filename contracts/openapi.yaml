@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
   title: EDSEC Sales Management System API
-  version: 1.2.0
+  version: 1.3.0
   description: >
-    Contract revision addressing frontend blockers A1-A12. PostgreSQL is the
+    Contract revision restoring v1.1 operations and resolving frontend blockers, POS and offline sync requirements. PostgreSQL is the
     source of truth. Tenant context is derived from a verified Supabase JWT
     and validated membership. All non-POS operations are online-only.
 servers:
@@ -415,6 +415,258 @@ paths:
                     properties:
                       data: { $ref: '#/components/schemas/UploadUrlResult' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+  /plans:
+    get:
+      summary: List active subscription plans and prices.
+      security: []
+      x-permission: public
+      responses:
+        '200': { description: Plans, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    get:
+      summary: Get business profile.
+      x-permission: business.settings.read
+      responses:
+        '200': { description: Business, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+    patch:
+      summary: Update business profile and logo object path.
+      x-permission: business.settings.update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, properties: { name: { type: string }, logo_object_path: { type: [string, 'null'] }, email: { type: [string, 'null'] }, phone: { type: [string, 'null'] }, address: { type: [string, 'null'] }, currency_code: { type: string }, timezone: { type: string }, vat_enabled: { type: boolean }, vat_rate_bps: { type: integer }, tax_mode: { type: string, enum: [inclusive, exclusive] } } }
+      responses:
+        '200': { description: Updated business, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/categories:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    put:
+      summary: Replace one or more business categories.
+      x-permission: business.settings.update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [category_ids], properties: { category_ids: { type: array, minItems: 1, uniqueItems: true, items: { type: string, format: uuid } } } }
+      responses:
+        '200': { description: Categories updated, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/product-templates:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    get:
+      summary: List global product templates with image licence metadata.
+      x-permission: products.read
+      x-feature: product_templates
+      parameters:
+        - { name: category_id, in: query, schema: { type: string, format: uuid } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        '200': { description: Templates, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/product-templates/{template_id}/copy:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - { name: template_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Copy template to tenant products with zero stock.
+      x-permission: products.create
+      x-feature: product_templates
+      responses:
+        '201': { description: Product copied, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/products/{product_id}:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - { name: product_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Get product.
+      x-permission: products.read
+      responses:
+        '200': { description: Product, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+    patch:
+      summary: Update product; price fields require independent price permissions.
+      x-permission: products.update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductWrite' }
+      responses:
+        '200': { description: Updated product, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+    delete:
+      summary: Archive product; hard delete prohibited.
+      x-permission: products.archive
+      responses:
+        '204': { description: Archived }
+  /businesses/{business_id}/products/imports:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Start CSV/XLSX product import by uploaded object_path.
+      x-permission: products.import
+      x-feature: product_import
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [object_path, file_name], properties: { object_path: { type: string }, file_name: { type: string }, branch_id: { type: string, format: uuid } } }
+      responses:
+        '202': { description: Import queued, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+  /businesses/{business_id}/products/imports/{import_id}:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - { name: import_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Get import status and row report.
+      x-permission: products.read
+      x-feature: product_import
+      responses:
+        '200': { description: Import report, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/inventory/adjustments:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Create audited stock adjustment.
+      x-permission: inventory.adjust
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [branch_id, product_id, quantity_delta, reason], properties: { branch_id: { type: string, format: uuid }, product_id: { type: string, format: uuid }, quantity_delta: { type: string, pattern: '^-?[0-9]+(\\.[0-9]{1,4})?$' }, reason: { type: string } } }
+      responses:
+        '201': { description: Adjustment recorded, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/inventory/movements:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    get:
+      summary: List stock movements.
+      x-permission: inventory.read
+      parameters:
+        - { name: branch_id, in: query, schema: { type: string, format: uuid } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        '200': { description: Movement page, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/purchases/{purchase_id}/receive:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - { name: purchase_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Receive purchase order lines and update stock.
+      x-permission: purchases.receive
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [lines], properties: { lines: { type: array, items: { type: object, required: [purchase_line_id, quantity_received], properties: { purchase_line_id: { type: string, format: uuid }, quantity_received: { type: string, pattern: '^[0-9]+(\\.[0-9]{1,4})?$' } } } } } }
+      responses:
+        '200': { description: Received, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/sales/{sale_id}:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - { name: sale_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Get sale, items and payment records.
+      x-permission: sales.read
+      responses:
+        '200': { description: Sale, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/sales/{sale_id}/void:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - { name: sale_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Void sale with reason; never delete.
+      x-permission: sales.void
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 3 } } }
+      responses:
+        '200': { description: Sale voided, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/sales/{sale_id}/refunds:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - { name: sale_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Create partial or full sale refund.
+      x-permission: sales.refund
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [amount_minor, reason], properties: { amount_minor: { $ref: '#/components/schemas/MoneyMinor' }, reason: { type: string } } }
+      responses:
+        '201': { description: Refund created, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/payments/{payment_id}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+      - { name: payment_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      summary: Confirm manual bank transfer.
+      x-permission: payments.confirm_manual
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [provider_reference], properties: { provider_reference: { type: string }, evidence_object_path: { type: [string, 'null'] } } }
+      responses:
+        '200': { description: Payment confirmed, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /businesses/{business_id}/sync/batches:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    post:
+      summary: Sync bounded offline POS batch with per-operation results.
+      x-permission: sales.sync
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [device_id, operations], properties: { device_id: { type: string, format: uuid }, operations: { type: array, minItems: 1, maxItems: 50, items: { type: object, required: [client_operation_id, client_created_at, sale], properties: { client_operation_id: { type: string, format: uuid }, client_created_at: { type: string, format: date-time }, sale: { $ref: '#/components/schemas/SaleCreate' } } } } } }
+      responses:
+        '200': { description: Accepted/rejected operations, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+  /businesses/{business_id}/sync/status:
+    parameters:
+      - $ref: '#/components/parameters/BusinessId'
+    get:
+      summary: Read offline sync device status.
+      x-permission: sales.sync
+      responses:
+        '200': { description: Sync status, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /me/active-business:
+    put:
+      summary: Select active business from verified memberships; client retains session selection.
+      x-permission: authenticated
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [business_id], properties: { business_id: { type: string, format: uuid } } }
+      responses:
+        '200': { description: Active business, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+  /webhooks/paystack:
+    post:
+      summary: Verify Paystack signature and transaction server-side.
+      security: []
+      x-permission: provider_signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { description: Verified webhook acknowledged. }
+        '400': { description: Invalid signature or payload. }
 components:
   securitySchemes:
     SupabaseBearer:
@@ -453,12 +705,17 @@ components:
             fields: { type: object, additionalProperties: { type: string } }
     ErrorCode:
       type: string
-      enum: [UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, RATE_LIMITED, SUBSCRIPTION_INACTIVE, PLAN_FEATURE_UNAVAILABLE, PLAN_LIMIT_EXCEEDED, PAYMENT_REQUIRED, INSUFFICIENT_STOCK, PRICE_CHANGED, PRODUCT_ARCHIVED, IDEMPOTENCY_KEY_REUSED, INTERNAL_ERROR]
+      enum: [UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, RATE_LIMITED, SUBSCRIPTION_INACTIVE, PLAN_FEATURE_UNAVAILABLE, PLAN_LIMIT_EXCEEDED, PAYMENT_REQUIRED, STOCK_INSUFFICIENT, INSUFFICIENT_STOCK, PRICE_CHANGED, PRODUCT_ARCHIVED, IDEMPOTENCY_KEY_REUSED, EMAIL_NOT_VERIFIED, PAYMENT_UNVERIFIED, TENANT_CONTEXT_REQUIRED, SYNC_BATCH_TOO_LARGE, DISCOUNT_BELOW_COST, INTERNAL_ERROR]
     MoneyMinor:
       type: string
+      pattern: '^[0-9]+$'
+      description: Unsigned integer minor units as decimal string.
+      examples: ['125000']
+    SignedMoneyMinor:
+      type: string
       pattern: '^-?[0-9]+$'
-      description: Base-10 integer minor units serialized as a decimal string. Unsigned amounts must be >= 0; signed deltas may be negative.
-      examples: ['125000', '-2500']
+      description: Signed integer minor-unit delta.
+      examples: ['-2500']
     MeProfile:
       type: object
       required: [user_id, email, memberships]
@@ -493,10 +750,10 @@ components:
         default_branch_id: { type: string, format: uuid }
     BusinessCreate:
       type: object
-      required: [name, category_id]
+      required: [name]
       properties:
         name: { type: string, minLength: 2, maxLength: 160 }
-        category_id: { type: string, format: uuid }
+        category_id: { type: [string, 'null'], format: uuid }
         currency_code: { type: string, default: NGN }
         timezone: { type: string, default: Africa/Lagos }
         vat_enabled: { type: boolean, default: false }
@@ -846,6 +1103,16 @@ components:
       content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
     PaymentRequired:
       description: Payment required or subscription inactive.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    Conflict:
+      description: State or idempotency conflict.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+    RateLimited:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema: { type: integer, minimum: 1 }
       content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
     PayloadTooLarge:
       description: Upload exceeds allowed size.
