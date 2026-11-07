@@ -10,6 +10,7 @@ export interface BusinessAccess {
   listMemberships(userId: string): Promise<MembershipSummary[]>;
   assertMember(input: { userId: string; businessId: string }): Promise<void>;
   assertPermission(input: { userId: string; businessId: string; permission: string }): Promise<void>;
+  assertFeature(input: { userId: string; businessId: string; feature: string }): Promise<void>;
 }
 export interface RouteDependencies {
   authClient: Parameters<typeof verifySupabaseAccessToken>[0];
@@ -55,6 +56,7 @@ function errorResponse(error: unknown, requestId: string): Response {
     EMAIL_NOT_VERIFIED: [403, "Verify your email before creating a business"],
     EMAIL_REQUIRED: [400, "A verified email address is required"],
     FORBIDDEN: [403, "You do not have permission to perform this action"],
+    FEATURE_NOT_AVAILABLE: [403, "This feature is not included in the current business plan"],
     INVALID_CATEGORY_IDS: [400, "One or more selected business categories are invalid"],
     VALIDATION_ERROR: [400, "The submitted information is invalid"],
     REQUIRED_STEP_CANNOT_BE_SKIPPED: [400, "Required onboarding steps cannot be skipped"],
@@ -152,6 +154,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         const profile = await getOrCreateProfile(deps.profiles, user);
         await deps.access.assertMember({ userId: profile.id, businessId });
         await deps.access.assertPermission({ userId: profile.id, businessId, permission: "branches.manage" });
+        await deps.access.assertFeature({ userId: profile.id, businessId, feature: "multi_branch" });
         const input = await body(request);
         if (typeof input.name !== "string" || !input.name.trim() || typeof input.code !== "string" || !input.code.trim()) {
           throw new ApiError(400, "VALIDATION_ERROR", "Branch name and code are required");
