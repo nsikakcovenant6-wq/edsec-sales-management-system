@@ -5,6 +5,8 @@ export type NavigationItem = {
   href: string;
   icon: LucideIcon;
   description: string;
+  /** Optional permission identifier supplied by the approved backend contract. */
+  permission?: string;
 };
 
 export const navigationItems: NavigationItem[] = [
