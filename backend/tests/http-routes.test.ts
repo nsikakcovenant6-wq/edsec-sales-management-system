@@ -7,8 +7,17 @@ function dependencies() {
   const businesses = { transaction: vi.fn() };
   const categories = { transaction: vi.fn() };
   const onboarding = { getProgress: vi.fn(), updateProgress: vi.fn() };
-  const access = { assertMember: vi.fn(), assertPermission: vi.fn() };
-  return { authClient, profiles, businesses, categories, onboarding, access, requestId: () => "test-request" };
+  const access = { listMemberships: vi.fn().mockResolvedValue([]), assertMember: vi.fn(), assertPermission: vi.fn() };
+  const categoryCatalog = { listCategories: vi.fn().mockResolvedValue([]) };
+  const workspace = () => ({
+    getBusiness: vi.fn(), updateBusiness: vi.fn(), listBranches: vi.fn(),
+    createBranch: vi.fn(), updateBranch: vi.fn(),
+  });
+  return {
+    authClient, profiles, businesses, categories: () => categories,
+    onboarding: () => onboarding, access, categoryCatalog, workspace,
+    requestId: () => "test-request",
+  };
 }
 
 describe("Phase 1 REST handlers", () => {
