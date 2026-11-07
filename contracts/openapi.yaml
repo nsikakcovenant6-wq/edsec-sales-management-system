@@ -29,6 +29,7 @@ tags:
 paths:
   /me:
     get:
+      x-permission: authenticated
       tags: [Me]
       summary: Current profile, memberships, permissions, scopes and entitlements summary.
       responses:
@@ -45,6 +46,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
   /businesses:
     get:
+      x-permission: authenticated
       tags: [Businesses]
       summary: List businesses the caller is an active member of.
       responses:
@@ -61,6 +63,7 @@ paths:
                         type: array
                         items: { $ref: '#/components/schemas/BusinessListItem' }
     post:
+      x-permission: authenticated; requires verified email
       tags: [Businesses]
       summary: Create business, owner membership, default branch and onboarding record atomically.
       requestBody:
@@ -83,6 +86,7 @@ paths:
   /businesses/{business_id}/subscription:
     parameters:
       - $ref: '#/components/parameters/BusinessId'
+      x-permission: subscription.read
     get:
       tags: [Businesses]
       summary: Current subscription and effective feature entitlements.
@@ -100,10 +104,14 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
   /businesses/{business_id}/branches:
     parameters:
+      x-permission: branches.read
       - $ref: '#/components/parameters/BusinessId'
     get:
       tags: [Branches]
       summary: List branches visible to the caller.
+      parameters:
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
       responses:
         '200':
           description: Branches.
@@ -167,6 +175,7 @@ paths:
                       data: { $ref: '#/components/schemas/Branch' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+      x-permission: public
   /categories:
     get:
       tags: [Categories]
@@ -185,6 +194,7 @@ paths:
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/CategoryNode' }
+      x-permission: business.settings.read
   /businesses/{business_id}/onboarding:
     parameters:
       - $ref: '#/components/parameters/BusinessId'
@@ -198,6 +208,7 @@ paths:
             application/json:
               schema:
                 allOf:
+      x-permission: business.settings.update
                   - $ref: '#/components/schemas/Success'
                   - type: object
                     properties:
@@ -220,6 +231,7 @@ paths:
                   - $ref: '#/components/schemas/Success'
                   - type: object
                     properties:
+      x-permission: products.read
                       data: { $ref: '#/components/schemas/OnboardingProgress' }
         '422': { $ref: '#/components/responses/ValidationError' }
   /businesses/{business_id}/products:
@@ -228,6 +240,12 @@ paths:
     get:
       tags: [Products]
       summary: List products.
+      parameters:
+        - { name: category_id, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string, enum: [active, archived] } }
+        - { name: sort, in: query, schema: { type: string, enum: [name_asc, name_desc, created_desc, updated_desc] } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
       parameters:
         - { name: cursor, in: query, schema: { type: string } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
@@ -265,6 +283,7 @@ paths:
                   - $ref: '#/components/schemas/Success'
                   - type: object
                     properties:
+      x-permission: inventory.read
                       data: { $ref: '#/components/schemas/Product' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/ValidationError' }
@@ -274,6 +293,11 @@ paths:
     get:
       tags: [Inventory]
       summary: Inventory balances visible to caller.
+      parameters:
+        - { name: branch_id, in: query, schema: { type: string, format: uuid } }
+        - { name: low_stock, in: query, schema: { type: boolean } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
       responses:
         '200':
           description: Inventory balance list.
@@ -283,6 +307,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/Success'
                   - type: object
+      x-permission: suppliers.read
                     properties:
                       data:
                         type: array
@@ -293,6 +318,9 @@ paths:
     get:
       tags: [Suppliers]
       summary: List suppliers.
+      parameters:
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
       responses:
         '200':
           description: Supplier list.
@@ -321,6 +349,7 @@ paths:
           content:
             application/json:
               schema:
+      x-permission: purchases.read
                 allOf:
                   - $ref: '#/components/schemas/Success'
                   - type: object
@@ -332,6 +361,9 @@ paths:
     get:
       tags: [Purchases]
       summary: List purchase orders.
+      parameters:
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
       responses:
         '200':
           description: Purchase orders.
@@ -345,12 +377,28 @@ paths:
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/PurchaseOrder' }
+    post:
+      tags: [Purchases]
+      summary: Create a purchase order.
+      x-permission: purchases.create
+      requestBody:
+        required: true
+      x-permission: sales.read
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PurchaseOrderWrite' }
+      responses:
+        '201': { description: Purchase order created, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
   /businesses/{business_id}/sales:
     parameters:
       - $ref: '#/components/parameters/BusinessId'
     get:
       tags: [Sales]
       summary: List sales.
+      parameters:
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
       responses:
         '200':
           description: Sales.
@@ -364,6 +412,22 @@ paths:
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/Sale' }
+    post:
+      tags: [Sales]
+      summary: Create a sale atomically with line items, stock deduction and tender intents.
+      x-permission: sales.create
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaleCreate' }
+      responses:
+        '201': { description: Sale and embedded payment/tender results, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
   /businesses/{business_id}/payments:
     parameters:
       - $ref: '#/components/parameters/BusinessId'
@@ -391,6 +455,16 @@ paths:
                       data: { $ref: '#/components/schemas/PaymentInitiationResult' }
         '402': { $ref: '#/components/responses/PaymentRequired' }
         '422': { $ref: '#/components/responses/ValidationError' }
+    get:
+      tags: [Payments]
+      summary: List payment records and states.
+      x-permission: payments.read
+      parameters:
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, confirmed, failed, reversed] } }
+      responses:
+        '200': { description: Payment page, content: { application/json: { schema: { $ref: '#/components/schemas/Success' } } } }
   /businesses/{business_id}/storage/upload-url:
     parameters:
       - $ref: '#/components/parameters/BusinessId'
