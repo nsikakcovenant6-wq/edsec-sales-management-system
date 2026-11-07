@@ -18,6 +18,9 @@ AS $$
 $$;
 
 ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.platform_admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.member_branches ENABLE ROW LEVEL SECURITY;
@@ -55,6 +58,34 @@ CREATE POLICY business_member_select ON public.businesses
         AND bm.status = 'ACTIVE'
     )
   );
+
+CREATE POLICY business_insert_owner ON public.businesses
+  FOR INSERT WITH CHECK (
+    id = public.app_current_business_id()
+    AND public.app_current_user_id() IS NOT NULL
+  );
+CREATE POLICY business_update_member ON public.businesses
+  FOR UPDATE USING (id = public.app_current_business_id())
+  WITH CHECK (id = public.app_current_business_id());
+
+CREATE POLICY business_role_scope ON public.roles
+  USING (business_id IS NULL OR business_id = public.app_current_business_id())
+  WITH CHECK (business_id = public.app_current_business_id());
+
+CREATE POLICY role_permission_scope ON public.role_permissions
+  USING (EXISTS (
+    SELECT 1 FROM public.roles r
+    WHERE r.id = role_permissions.role_id
+      AND (r.business_id IS NULL OR r.business_id = public.app_current_business_id())
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.roles r
+    WHERE r.id = role_permissions.role_id
+      AND r.business_id = public.app_current_business_id()
+  ));
+
+CREATE POLICY platform_admin_self_read ON public.platform_admins
+  FOR SELECT USING (user_id = public.app_current_user_id() AND is_active = true);
 
 -- Tenant table policy: the active business context is required for all CRUD.
 DO $$
