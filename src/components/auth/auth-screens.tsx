@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Building2, Check, ChevronRight, ShieldCheck, Sparkles } from "lucide-react";
 
 const categories = ["Retail & general merchandise", "Food, grocery & beverages", "Fashion & apparel", "Electronics & gadgets", "Health & beauty", "Pharmacy", "Wholesale & distribution", "Hardware & building materials", "Other"];
@@ -30,6 +30,12 @@ type AuthName = "register" | "verify-email" | "login" | "forgot-password" | "res
 export function AuthScreen({ screen }: { screen: AuthName }) {
   const [notice, setNotice] = useState("");
   const [otp, setOtp] = useState("");
+  const [resendSeconds, setResendSeconds] = useState(30);
+  useEffect(() => {
+    if (!isVerify || resendSeconds === 0) return;
+    const timer = window.setTimeout(() => setResendSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [isVerify, resendSeconds]);
   const config: Record<AuthName, { title: string; description: string; action: string }> = {
     register: { title: "Create your account", description: "Start setting up your EDSEC workspace.", action: "Create account" },
     "verify-email": { title: "Verify your email", description: "Enter the six-digit code. This is a UI preview; no code has been sent.", action: "Verify email" },
@@ -50,12 +56,12 @@ export function AuthScreen({ screen }: { screen: AuthName }) {
       {isRegister && <Field label="Confirm password" type="password" placeholder="Re-enter your password" autoComplete="new-password"/>}
       {isVerify && <label className={labelClass}>Six-digit code<input className={fieldClass + " text-center text-2xl font-semibold tracking-[0.65em]"} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} required/><span className="mt-2 block text-xs font-normal text-[var(--muted)]">Enter the code shown in your verification email.</span></label>}
       {isRegister && <label className="flex items-start gap-3 text-xs leading-5 text-[var(--muted)]"><input type="checkbox" className="mt-1 size-4 accent-[var(--brand)]" required/>I agree to the terms of service and privacy policy.</label>}
-      <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[var(--brand-strong)]">{config[screen].action}<ArrowRight size={16}/></button>
+      <button disabled={isVerify && otp.length !== 6} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:opacity-50">{config[screen].action}<ArrowRight size={16}/></button>
     </form>
     {notice && <Notice>{notice}</Notice>}
     <div className="mt-7 flex flex-wrap items-center justify-between gap-3 text-sm">
       {isLogin ? <Link className="font-medium text-[var(--brand)]" href="/auth/forgot-password">Forgot password?</Link> : <Link className="inline-flex items-center gap-1 text-[var(--muted)]" href="/auth/login"><ArrowLeft size={14}/> Back to sign in</Link>}
-      {isRegister ? <Link className="font-medium text-[var(--brand)]" href="/auth/login">Already registered? Sign in</Link> : isLogin ? <Link className="font-medium text-[var(--brand)]" href="/auth/register">Create an account</Link> : isForgot ? <Link className="font-medium text-[var(--brand)]" href="/auth/reset-password">Continue to reset preview</Link> : isVerify ? <button type="button" onClick={() => setNotice("Resend preview selected. No email was sent.")} className="font-medium text-[var(--brand)]">Resend code</button> : null}
+      {isRegister ? <Link className="font-medium text-[var(--brand)]" href="/auth/login">Already registered? Sign in</Link> : isLogin ? <Link className="font-medium text-[var(--brand)]" href="/auth/register">Create an account</Link> : isForgot ? <Link className="font-medium text-[var(--brand)]" href="/auth/reset-password">Continue to reset preview</Link> : isVerify ? <button type="button" disabled={resendSeconds > 0} onClick={() => { setResendSeconds(30); setNotice("Resend preview selected. No email was sent."); }} className="font-medium text-[var(--brand)] disabled:cursor-not-allowed disabled:text-slate-400">{resendSeconds > 0 ? "Resend code in 00:" + String(resendSeconds).padStart(2, "0") : "Resend code"}</button> : null}
     </div>{isRegister && <div className="mt-4 flex flex-col gap-3 text-sm"><Link className="font-medium text-[var(--brand)]" href="/auth/verify-email">Open email verification preview</Link><Link className="font-medium text-[var(--brand)]" href="/onboarding/welcome">Continue to business setup preview</Link></div>}<p className="mt-8 flex items-center gap-2 text-xs text-[var(--muted)]"><ShieldCheck size={15}/> Account security will follow the approved authentication contract.</p>
   </Frame>;
 }
