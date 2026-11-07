@@ -4,7 +4,10 @@
 ### Contract revision
 v1.3.0 — 7 November 2026. Backward-compatible reconciliation of the v1.1 operation set with v1.2 decisions and POS/offline requirements. Draft; not stable until validation and Product Owner approval.
 
-### A1 — Authentication/session: accepted; direct Supabase Auth
+### A1 — Authentication/session: implementation direction; details pending verification
+The following is a provisional integration direction, not yet confirmed by a live Supabase test. Do not mark authentication contract stable until a six-digit signup OTP is sent and verified against the configured Supabase project, recovery redirects are tested on web and Capacitor, and the password policy is agreed.
+
+### A1 — Authentication/session: direct Supabase Auth
 The frontend uses `@supabase/supabase-js` directly for authentication:
 - Registration: `supabase.auth.signUp({ email, password, options: { data } })`.
 - Email OTP verification: `supabase.auth.verifyOtp({ email, token, type: 'email' })`.
@@ -192,3 +195,12 @@ Product Owner decisions still outstanding: exact Starter/Professional prices; en
 - `/me` returns memberships and each membership's onboarding state/progress. Active business is selected by `PUT /me/active-business`; no implicit server-side global active-business preference is assumed.
 - Unsigned money fields use `MoneyMinor`; only explicit deltas use `SignedMoneyMinor`.
 - Quantity strings allow up to four fractional digits (Decimal(18,4)); JSON regex escaping must produce the regex `^[0-9]+(\\.[0-9]{1,4})?$` for positive quantities and `^-?[0-9]+(\\.[0-9]{1,4})?$` for signed deltas.
+
+
+### A1 implementation values requiring live verification before stable release
+- Signup verification type: Supabase `verifyOtp({ email, token, type: 'email' })` is the proposed six-digit email OTP flow. Confirm against the actual project's Supabase Auth email template and a real signup; do not substitute `type: 'signup'` without that test.
+- Password policy: proposed minimum 12 characters, at least one letter and one number; do not enforce until Product Owner confirms and Supabase Auth settings match. No mandatory symbol requirement is currently approved.
+- Signup user metadata keys: `full_name` and `phone`; API profile sync maps these to application profile fields. Confirm nullable phone and validation format.
+- First authenticated `GET /me`: idempotently create/synchronise the profile from the verified JWT and trusted auth metadata, return empty memberships if no business exists, never create a business implicitly.
+- Recovery redirect allowlist: production web origin plus configured localhost development origins; Capacitor custom scheme/deep-link URI must be explicitly registered in Supabase redirect allowlist. Exact URI values are deployment configuration and remain TBD until the app identifier/domain are finalised.
+- These values are pending live verification; the OpenAPI file must not be labelled stable until this checklist is completed.
