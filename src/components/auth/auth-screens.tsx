@@ -31,11 +31,6 @@ export function AuthScreen({ screen }: { screen: AuthName }) {
   const [notice, setNotice] = useState("");
   const [otp, setOtp] = useState("");
   const [resendSeconds, setResendSeconds] = useState(30);
-  useEffect(() => {
-    if (!isVerify || resendSeconds === 0) return;
-    const timer = window.setTimeout(() => setResendSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
-    return () => window.clearTimeout(timer);
-  }, [isVerify, resendSeconds]);
   const config: Record<AuthName, { title: string; description: string; action: string }> = {
     register: { title: "Create your account", description: "Start setting up your EDSEC workspace.", action: "Create account" },
     "verify-email": { title: "Verify your email", description: "Enter the six-digit code. This is a UI preview; no code has been sent.", action: "Verify email" },
@@ -47,6 +42,11 @@ export function AuthScreen({ screen }: { screen: AuthName }) {
   const isLogin = screen === "login";
   const isVerify = screen === "verify-email";
   const isForgot = screen === "forgot-password";
+  useEffect(() => {
+    if (!isVerify || resendSeconds === 0) return;
+    const timer = window.setTimeout(() => setResendSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [isVerify, resendSeconds]);
   const submitMessage = isRegister ? "Registration preview complete. No account was created." : isVerify ? "Verification preview submitted. No OTP was checked." : isLogin ? "Sign-in preview submitted. Authentication is not connected." : isForgot ? "Recovery preview submitted. No email was sent." : "Password preview submitted. No password was changed.";
   return <Frame><div className="mb-8"><p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand)]">Account access</p><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{config[screen].title}</h1><p className="mt-3 text-sm leading-6 text-[var(--muted)]">{config[screen].description}</p></div>
     <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); setNotice(submitMessage); }}>
