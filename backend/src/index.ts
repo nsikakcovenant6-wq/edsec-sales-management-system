@@ -7,3 +7,4 @@ export * from "./businesses/categories.js";
 export * from "./businesses/create-business.js";
 export * from "./onboarding/progress.js";
 export * from "./profiles/profile.js";
+export * from "./http/routes.js";
