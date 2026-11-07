@@ -124,7 +124,6 @@ export class PrismaWorkspaceRepository {
         const member = await tx.businessMember.findFirst({
           where: { businessId, userId, status: "ACTIVE" },
           include: {
-            business: { select: { name: true } },
             role: { include: { grants: { include: { permission: { select: { key: true } } } } } },
             branchAssignments: { select: { branchId: true } },
             business: { select: { name: true, subscription: { select: { status: true, planCode: true } }, onboarding: true } },
