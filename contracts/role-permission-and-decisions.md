@@ -31,7 +31,7 @@ All fields ending in `_minor` are base-10 integer strings, never JSON numbers. E
 
 ### A5 — Subscription and entitlements: accepted
 Add `GET /businesses/{business_id}/subscription`. Status values: `trial | active | grace | expired`. Response includes plan, billing interval, trial_ends_at, current_period_end, grace_ends_at, and features[{key, enabled, limit, usage}]. /me echoes status and effective features per membership.
-Canonical feature keys: `multi_branch`, `ai_analytics`, `scheduled_reports`, `advanced_inventory`, `pharmacy_batch_expiry`, `electronics_serial_tracking`, `product_import`, `employee_management`, `max_employees`, `max_products`, `max_branches`.
+Canonical feature keys: `multi_branch`, `product_templates`, `ai_analytics`, `scheduled_reports`, `advanced_inventory`, `pharmacy_batch_expiry`, `electronics_serial_tracking`, `product_import`, `employee_management`, `max_employees`, `max_products`, `max_branches`.
 `PLAN_FEATURE_UNAVAILABLE` and `PLAN_LIMIT_EXCEEDED` return HTTP 403. `SUBSCRIPTION_INACTIVE` returns HTTP 402. During grace, features remain enabled only as returned by entitlements; backend write policy is authoritative.
 
 ### A6 — Branches: accepted
@@ -204,3 +204,17 @@ Product Owner decisions still outstanding: exact Starter/Professional prices; en
 - First authenticated `GET /me`: idempotently create/synchronise the profile from the verified JWT and trusted auth metadata, return empty memberships if no business exists, never create a business implicitly.
 - Recovery redirect allowlist: production web origin plus configured localhost development origins; Capacitor custom scheme/deep-link URI must be explicitly registered in Supabase redirect allowlist. Exact URI values are deployment configuration and remain TBD until the app identifier/domain are finalised.
 - These values are pending live verification; the OpenAPI file must not be labelled stable until this checklist is completed.
+
+
+### Prisma model reconciliation and schema authority
+The canonical Prisma schema is `/prisma/schema.prisma`. The file `/contracts/schema.prisma` is a byte-identical contract mirror and must be updated in the same commit. The schema includes Customer, DeviceUnit, IdempotencyRecord, PlanPrice, ProductTemplate, TemplateImage (licence/source/attribution), SyncDevice, SyncOperation and PlatformAdmin. Prisma 7 datasource URL is configured in root `prisma.config.ts`.
+
+### Upload protocol and purpose-based authorization
+The API returns a short-lived `upload_url` and `object_path`. The frontend uploads raw file bytes with HTTP PUT to `upload_url`; it does not call `supabase-js uploadToSignedUrl` for this contract. After upload, the frontend sends `object_path` in Business/Product/Import write operations. Permission by purpose:
+- `business_logo`: `business.settings.update`
+- `product_image`: `products.create` on create or `products.update` on update
+- `import_file`: `products.import`
+Allowed file types and size limits are purpose-specific; image files are JPEG/PNG/WebP, and imports are CSV/XLSX. The backend validates object ownership, MIME type, size and path prefix.
+
+### Product price and opening stock authorization
+Creating or updating a product uses `products.create` or `products.update` for the base record. Supplying `selling_price_minor` or `minimum_selling_price_minor` additionally requires `products.selling_price.update`; supplying `cost_price_minor` additionally requires `products.cost_price.update`. Without cost-price view permission, cost price is omitted from read responses. Setting `opening_stock` requires `inventory.adjust` and an authorized `branch_id`; the backend creates an audited opening stock movement, never a silent balance write.
