@@ -60,7 +60,7 @@ export class PrismaProfileRepository implements ProfileRepository {
 export class PrismaBusinessProvisioningRepository implements BusinessProvisioningRepository {
   constructor(private readonly prisma: PrismaClient) {}
   transaction<T>(work: (tx: BusinessProvisioningTransaction) => Promise<T>): Promise<T> {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction<T>(async (tx) => {
       let businessId = "";
       let branchId = "";
       let provisioningUserId = "";
