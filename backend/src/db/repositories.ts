@@ -7,6 +7,7 @@ import type { ProfileRepository } from "../profiles/profile.js";
 import type { OnboardingProgress, OnboardingRepository } from "../onboarding/progress.js";
 import type { BusinessAccess } from "../http/routes.js";
 import { withTenantContext } from "../tenancy/context.js";
+import { PrismaWorkspaceRepository } from "./workspace.js";
 
 const OWNER_PERMISSION_KEYS = [
   "business.settings.read","business.settings.update","members.read","members.invite","members.update","members.remove",
@@ -120,6 +121,27 @@ export class PrismaBusinessProvisioningRepository implements BusinessProvisionin
           await tx.onboardingProgress.create({
             data: { businessId: input.businessId, currentStep: input.currentStep, status: "NOT_STARTED" },
           });
+          await tx.plan.upsert({
+            where: { code: "STARTER" },
+            create: { code: "STARTER", name: "Starter", description: "Starter plan with a 14-day free trial" },
+            update: {},
+          });
+          await tx.subscription.create({
+            data: {
+              businessId: input.businessId, planCode: "STARTER", interval: "MONTHLY",
+              status: "TRIAL", trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+            },
+          });
+          await tx.planFeature.createMany({
+            data: [
+              { planCode: "STARTER", key: "ai_analytics", enabled: false },
+              { planCode: "STARTER", key: "multi_branch", enabled: false },
+              { planCode: "STARTER", key: "max_employees", enabled: true, limit: 3 },
+              { planCode: "STARTER", key: "max_products", enabled: true, limit: 1000 },
+              { planCode: "STARTER", key: "product_templates", enabled: true },
+            ],
+            skipDuplicates: true,
+          });
         },
       };
       return work(adapter);
@@ -178,6 +200,7 @@ export class PrismaOnboardingRepository implements OnboardingRepository {
 
 export class PrismaBusinessAccess implements BusinessAccess {
   constructor(private readonly prisma: PrismaClient) {}
+  listMemberships(userId: string) { return new PrismaWorkspaceRepository(this.prisma, userId).listMemberships(userId); }
   async assertMember(input: { userId: string; businessId: string }): Promise<void> {
     const member = await withTenantContext(this.prisma, input, (tx) => tx.businessMember.findFirst({
       where: { businessId: input.businessId, userId: input.userId, status: "ACTIVE" },
