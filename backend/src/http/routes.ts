@@ -4,8 +4,10 @@ import { verifySupabaseAccessToken, type VerifiedIdentity } from "../auth/supaba
 import { getOrCreateProfile, type ProfileRepository } from "../profiles/profile.js";
 import { patchOnboardingProgress, type OnboardingPatch, type OnboardingProgress, type OnboardingRepository } from "../onboarding/progress.js";
 import { ApiError } from "./errors.js";
+import type { BusinessProfilePatch, BranchWrite, CategoryRecord, MembershipSummary } from "../db/workspace.js";
 
 export interface BusinessAccess {
+  listMemberships(userId: string): Promise<MembershipSummary[]>;
   assertMember(input: { userId: string; businessId: string }): Promise<void>;
   assertPermission(input: { userId: string; businessId: string; permission: string }): Promise<void>;
 }
@@ -18,6 +20,14 @@ export interface RouteDependencies {
     getProgress(businessId: string): Promise<OnboardingProgress | null>;
   };
   access: BusinessAccess;
+  categoryCatalog: { listCategories(): Promise<CategoryRecord[]> };
+  workspace: (profileId: string) => {
+    getBusiness(businessId: string): Promise<unknown | null>;
+    updateBusiness(businessId: string, patch: BusinessProfilePatch): Promise<unknown>;
+    listBranches(businessId: string, cursor?: string, limit?: number): Promise<{items: unknown[]; next_cursor: string | null}>;
+    createBranch(businessId: string, input: Required<Pick<BranchWrite, "name" | "code">> & BranchWrite): Promise<unknown>;
+    updateBranch(businessId: string, branchId: string, patch: BranchWrite): Promise<unknown>;
+  };
   requestId?: () => string;
 }
 type JsonObject = Record<string, unknown>;
@@ -68,7 +78,109 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
           id: profile.id, auth_user_id: profile.authUserId, email: profile.email,
           full_name: profile.fullName, phone: profile.phone,
           email_verified: Boolean(profile.emailVerifiedAt),
+          memberships: await deps.access.listMemberships(profile.id),
         }, 200, requestId);
+      } catch (error) { return errorResponse(error, requestId); }
+    },
+
+
+    listCategories: async (): Promise<Response> => {
+      const requestId = readRequestId(deps);
+      try { return json(await deps.categoryCatalog.listCategories(), 200, requestId); }
+      catch (error) { return errorResponse(error, requestId); }
+    },
+
+    getBusiness: async (request: Request, businessId: string): Promise<Response> => {
+      const requestId = readRequestId(deps);
+      try {
+        const user = await identity(request, deps);
+        const profile = await getOrCreateProfile(deps.profiles, user);
+        await deps.access.assertMember({ userId: profile.id, businessId });
+        await deps.access.assertPermission({ userId: profile.id, businessId, permission: "business.settings.read" });
+        const business = await deps.workspace(profile.id).getBusiness(businessId);
+        if (!business) throw new ApiError(404, "NOT_FOUND", "Business was not found");
+        return json(business, 200, requestId);
+      } catch (error) { return errorResponse(error, requestId); }
+    },
+
+    patchBusiness: async (request: Request, businessId: string): Promise<Response> => {
+      const requestId = readRequestId(deps);
+      try {
+        const user = await identity(request, deps);
+        const profile = await getOrCreateProfile(deps.profiles, user);
+        await deps.access.assertMember({ userId: profile.id, businessId });
+        await deps.access.assertPermission({ userId: profile.id, businessId, permission: "business.settings.update" });
+        const input = await body(request);
+        const patch: BusinessProfilePatch = {};
+        if (typeof input.name === "string") patch.name = input.name.trim();
+        if (input.email === null || typeof input.email === "string") patch.email = input.email as string | null;
+        if (input.phone === null || typeof input.phone === "string") patch.phone = input.phone as string | null;
+        if (input.address === null || typeof input.address === "string") patch.address = input.address as string | null;
+        if (input.logo_object_path === null || typeof input.logo_object_path === "string") patch.logoObjectPath = input.logo_object_path as string | null;
+        if (typeof input.currency_code === "string") patch.currencyCode = input.currency_code.toUpperCase();
+        if (typeof input.timezone === "string") patch.timezone = input.timezone;
+        if (typeof input.vat_enabled === "boolean") patch.vatEnabled = input.vat_enabled;
+        if (typeof input.vat_rate_bps === "number") patch.vatRateBps = input.vat_rate_bps;
+        if (input.tax_mode === "inclusive") patch.taxMode = "INCLUSIVE";
+        if (input.tax_mode === "exclusive") patch.taxMode = "EXCLUSIVE";
+        if (Object.keys(patch).length === 0) throw new ApiError(400, "VALIDATION_ERROR", "At least one supported business field is required");
+        if (patch.name !== undefined && (patch.name.length < 2 || patch.name.length > 160)) throw new ApiError(400, "VALIDATION_ERROR", "Business name must be 2–160 characters");
+        if (patch.currencyCode !== undefined && !/^[A-Z]{3}$/.test(patch.currencyCode)) throw new ApiError(400, "VALIDATION_ERROR", "Currency code must be three uppercase letters");
+        if (patch.vatRateBps !== undefined && (!Number.isInteger(patch.vatRateBps) || patch.vatRateBps < 0 || patch.vatRateBps > 10000)) throw new ApiError(400, "VALIDATION_ERROR", "VAT rate must be between 0 and 10000 basis points");
+        return json(await deps.workspace(profile.id).updateBusiness(businessId, patch), 200, requestId);
+      } catch (error) { return errorResponse(error, requestId); }
+    },
+
+    listBranches: async (request: Request, businessId: string): Promise<Response> => {
+      const requestId = readRequestId(deps);
+      try {
+        const user = await identity(request, deps);
+        const profile = await getOrCreateProfile(deps.profiles, user);
+        await deps.access.assertMember({ userId: profile.id, businessId });
+        await deps.access.assertPermission({ userId: profile.id, businessId, permission: "branches.read" });
+        const url = new URL(request.url);
+        const limit = Number(url.searchParams.get("limit") ?? 25);
+        const page = await deps.workspace(profile.id).listBranches(businessId, url.searchParams.get("cursor") ?? undefined, Number.isFinite(limit) ? limit : 25);
+        return json(page, 200, requestId);
+      } catch (error) { return errorResponse(error, requestId); }
+    },
+
+    createBranch: async (request: Request, businessId: string): Promise<Response> => {
+      const requestId = readRequestId(deps);
+      try {
+        const user = await identity(request, deps);
+        const profile = await getOrCreateProfile(deps.profiles, user);
+        await deps.access.assertMember({ userId: profile.id, businessId });
+        await deps.access.assertPermission({ userId: profile.id, businessId, permission: "branches.manage" });
+        const input = await body(request);
+        if (typeof input.name !== "string" || !input.name.trim() || typeof input.code !== "string" || !input.code.trim()) {
+          throw new ApiError(400, "VALIDATION_ERROR", "Branch name and code are required");
+        }
+        return json(await deps.workspace(profile.id).createBranch(businessId, {
+          name: input.name.trim(), code: input.code.trim(),
+          address: input.address === null || typeof input.address === "string" ? input.address : undefined,
+          isActive: typeof input.is_active === "boolean" ? input.is_active : undefined,
+          isDefault: typeof input.is_default === "boolean" ? input.is_default : undefined,
+        }), 201, requestId);
+      } catch (error) { return errorResponse(error, requestId); }
+    },
+
+    updateBranch: async (request: Request, businessId: string, branchId: string): Promise<Response> => {
+      const requestId = readRequestId(deps);
+      try {
+        const user = await identity(request, deps);
+        const profile = await getOrCreateProfile(deps.profiles, user);
+        await deps.access.assertMember({ userId: profile.id, businessId });
+        await deps.access.assertPermission({ userId: profile.id, businessId, permission: "branches.manage" });
+        const input = await body(request);
+        const patch: BranchWrite = {};
+        if (typeof input.name === "string") patch.name = input.name.trim();
+        if (typeof input.code === "string") patch.code = input.code.trim();
+        if (input.address === null || typeof input.address === "string") patch.address = input.address as string | null;
+        if (typeof input.is_active === "boolean") patch.isActive = input.is_active;
+        if (typeof input.is_default === "boolean") patch.isDefault = input.is_default;
+        if (Object.keys(patch).length === 0) throw new ApiError(400, "VALIDATION_ERROR", "At least one branch field is required");
+        return json(await deps.workspace(profile.id).updateBranch(businessId, branchId, patch), 200, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
 
