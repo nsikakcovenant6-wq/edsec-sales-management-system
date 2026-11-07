@@ -213,6 +213,7 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         const profile = await getOrCreateProfile(deps.profiles, user);
         const input = await body(request);
         if (typeof input.name !== "string") throw new ApiError(400, "VALIDATION_ERROR", "Business name is required", { name: "required" });
+        if (input.email !== undefined && input.email !== null && (typeof input.email !== "string" || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(input.email))) throw new ApiError(400, "VALIDATION_ERROR", "Business email address is invalid", { email: "invalid" });
         const result = await createBusiness(deps.businesses, {
           ownerUserId: profile.id, emailVerified: user.emailVerified, name: input.name,
           email: typeof input.email === "string" ? input.email : null,
