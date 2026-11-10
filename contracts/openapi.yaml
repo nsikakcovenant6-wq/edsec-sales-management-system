@@ -114,15 +114,42 @@ paths:
       - $ref: '#/components/parameters/BusinessId'
     get:
       tags: [Businesses]
-      summary: Get business profile.
+      summary: Get business profile and persisted selected category IDs.
+      description: >
+        Requires verified Supabase bearer identity, active business membership and
+        business.settings.read. data.category_ids contains the current selected
+        global category UUIDs, sorted by ID, including an empty array if none are
+        selected. Values are read from tenant-scoped business_categories and can
+        be restored across devices after the categories PUT operation.
       x-permission: business.settings.read
       responses:
         '200':
-          description: Business.
+          description: Business profile with selected category IDs.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Success'
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: object
+                    required: [id, name, category_ids]
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      name:
+                        type: string
+                      category_ids:
+                        type: array
+                        uniqueItems: true
+                        items:
+                          type: string
+                          format: uuid
+                    additionalProperties: true
+                  meta:
+                    type: object
+                    additionalProperties: true
         '403':
           $ref: '#/components/responses/Forbidden'
     patch:
