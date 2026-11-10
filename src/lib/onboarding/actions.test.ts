@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Membership } from "@/lib/api/client";
 const api = vi.hoisted(() => ({
-  me: vi.fn(), createBusiness: vi.fn(), patchBusiness: vi.fn(), patchOnboarding: vi.fn(), replaceCategories: vi.fn(),
+  me: vi.fn(), getBusiness: vi.fn(), createBusiness: vi.fn(), patchBusiness: vi.fn(), patchOnboarding: vi.fn(), replaceCategories: vi.fn(),
   getOnboarding: vi.fn(), listBranches: vi.fn(), createBranch: vi.fn(),
 }));
 vi.mock("@/lib/api/client", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api/client")>()), api }));
