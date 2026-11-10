@@ -22,6 +22,35 @@ function dependencies() {
 
 describe("Phase 1 REST handlers", () => {
 
+
+  it("returns persisted selected category IDs only after membership and read-permission checks", async () => {
+    const deps = dependencies();
+    const getBusiness = vi.fn().mockResolvedValue({
+      id: "business-1", name: "Shop", businessCategories: [{ categoryId: "cat-1" }, { categoryId: "cat-2" }],
+    });
+    deps.workspace = () => ({
+      getBusiness, updateBusiness: vi.fn(), listBranches: vi.fn(), createBranch: vi.fn(), updateBranch: vi.fn(),
+    });
+    const handlers = createV1RouteHandlers(deps);
+    const request = () => new Request("https://example.test/api/v1/businesses/business-1", {
+      headers: { authorization: "Bearer valid-token" },
+    });
+    const response = await handlers.getBusiness(request(), "business-1");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { category_ids: ["cat-1", "cat-2"] } });
+    expect(deps.access.assertMember).toHaveBeenCalledWith({ userId: "profile-1", businessId: "business-1" });
+    expect(deps.access.assertPermission).toHaveBeenCalledWith({
+      userId: "profile-1", businessId: "business-1", permission: "business.settings.read",
+    });
+    deps.access.assertMember.mockRejectedValueOnce(new Error("FORBIDDEN"));
+    const denied = await handlers.getBusiness(request(), "business-1");
+    expect(denied.status).toBe(403);
+    expect(getBusiness).toHaveBeenCalledTimes(1);
+    deps.access.assertPermission.mockRejectedValueOnce(new Error("FORBIDDEN"));
+    expect((await handlers.getBusiness(request(), "business-1")).status).toBe(403);
+    expect(getBusiness).toHaveBeenCalledTimes(1);
+  });
+
   it("returns the OpenAPI profile shape and resolves memberships with the internal profile ID", async () => {
     const deps = dependencies();
     const handlers = createV1RouteHandlers(deps);
