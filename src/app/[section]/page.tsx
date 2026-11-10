@@ -1,0 +1,7 @@
+import { notFound } from "next/navigation";
+import { ProductsWorkspace } from "@/components/products/products-workspace";
+import { EmptyState } from "@/components/ui/empty-state";
+import { navigationItems } from "@/lib/nav";
+import { Construction } from "lucide-react";
+const descriptions:Record<string,string>={inventory:"Stock balances, adjustments and movement history will be implemented with the inventory workflows.",pos:"The checkout workspace will be implemented with the sales processing phase.",customers:"Customer records and account history are not included in this phase.",reports:"Business reports and analytics will be implemented when reporting definitions are approved.",billing:"Plan comparison and billing screens will be implemented after subscription rules are confirmed."};
+export default async function SectionPage({params}:{params:Promise<{section:string}>}){const {section}=await params;if(section==="products")return <ProductsWorkspace mode="catalogue"/>;const item=navigationItems.find(x=>x.href===`/${section}`);const description=descriptions[section];if(!item||!description)notFound();return <div className="space-y-6"><div><p className="text-sm font-medium text-[var(--brand)]">Workspace module</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">{item.label}</h2></div><EmptyState icon={Construction} title={`${item.label} is being prepared`} description={description}/></div>;}
