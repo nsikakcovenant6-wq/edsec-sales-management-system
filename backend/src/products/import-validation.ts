@@ -49,6 +49,7 @@ export function parseCsv(
   let record: string[] = [];
   let cell = "";
   let quoted = false;
+  let closedQuote = false;
 
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index]!;
@@ -59,6 +60,7 @@ export function parseCsv(
           index += 1;
         } else {
           quoted = false;
+          closedQuote = true;
         }
       } else {
         cell += char;
@@ -67,15 +69,22 @@ export function parseCsv(
       continue;
     }
 
-    if (char === '"' && cell.length === 0) {
+    if (closedQuote && char !== "," && char !== "\n" && char !== "\r") {
+      throw new ImportValidationError("MALFORMED_CSV", "Unexpected content after a closing quoted field");
+    }
+    if (char === '"' && cell.length === 0 && !closedQuote) {
       quoted = true;
+    } else if (char === '"') {
+      throw new ImportValidationError("MALFORMED_CSV", "A quote may only begin an empty CSV field");
     } else if (char === ",") {
       record.push(cell);
       cell = "";
+      closedQuote = false;
     } else if (char === "\n" || char === "\r") {
       if (char === "\r" && text[index + 1] === "\n") index += 1;
       record.push(cell);
       cell = "";
+      closedQuote = false;
       if (record.some((value) => value.length > 0)) records.push(record);
       record = [];
       if (records.length > maxRows + 1) throw new ImportValidationError("TOO_MANY_ROWS", "The CSV file exceeds the maximum allowed row count");
