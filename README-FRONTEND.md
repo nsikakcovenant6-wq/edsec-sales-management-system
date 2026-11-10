@@ -10,7 +10,7 @@
 
 ## Development
 
-1. Copy `.env.example` to `.env.local` and provide the real EDSEC project values. Do not commit secrets.
+1. Copy `.env.example` to `.env.local` and provide the real EDSEC project values for Next.js. Also copy `backend/.env.example` to `backend/.env` for local Prisma CLI/runtime use. Do not commit either file or any secrets.
 2. Run `npm install`.
 3. Run `npm run db:generate` (Prisma generation requires a non-empty `DATABASE_URL`; it does not connect to the database).
 4. Run `npm run dev`.

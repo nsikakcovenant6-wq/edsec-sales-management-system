@@ -37,10 +37,10 @@ function Field({ label, type = "text", placeholder, autoComplete, value, default
   return <div><label className={labelClass} htmlFor={id}>{label}{required && <span className="ml-1 text-rose-600" aria-label="required">*</span>}</label><input id={id} aria-invalid={invalid || undefined} aria-describedby={describedBy} className={fieldClass + (invalid ? " border-rose-500 focus:border-rose-500 focus:ring-rose-100" : "")} type={type} placeholder={placeholder} autoComplete={autoComplete} value={value} defaultValue={defaultValue} onChange={onChange ? (event) => onChange(event.target.value) : undefined} name={name} minLength={minLength} maxLength={maxLength} pattern={pattern} inputMode={inputMode} required={required}/></div>;
 }
 type AuthName = "register" | "verify-email" | "login" | "forgot-password" | "reset-password";
-export function AuthScreen({ screen }: { screen: AuthName }) {
+export function AuthScreen({ screen, initialEmail = "" }: { screen: AuthName; initialEmail?: string }) {
   const router = useRouter();
   const [notice, setNotice] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const [fullName, setFullName] = useState("");
   const [otp, setOtp] = useState("");
   const [resendSeconds, setResendSeconds] = useState(30);
