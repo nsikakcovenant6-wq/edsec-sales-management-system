@@ -4,6 +4,7 @@ import { verifySupabaseAccessToken, type VerifiedIdentity } from "../auth/supaba
 import { getOrCreateProfile, type ProfileRepository } from "../profiles/profile.js";
 import { patchOnboardingProgress, type OnboardingPatch, type OnboardingProgress, type OnboardingRepository } from "../onboarding/progress.js";
 import { ApiError } from "./errors.js";
+import { PRODUCT_IMPORT_UPLOAD_POLICY, validateSignedImportUploadRequest } from "../products/import-storage.js";
 import type { BusinessProfilePatch, BranchWrite, CategoryRecord, MembershipSummary } from "../db/workspace.js";
 
 export interface BusinessAccess {
@@ -22,6 +23,7 @@ export interface RouteDependencies {
   };
   access: BusinessAccess;
   categoryCatalog: { listCategories(): Promise<CategoryRecord[]> };
+  importStorage: { createSignedUploadUrl(input: { bucket: string; objectPath: string; expiresIn: number }): Promise<{ signedUrl: string; token: string; path: string }> };
   workspace: (profileId: string) => {
     getBusiness(businessId: string): Promise<unknown | null>;
     updateBusiness(businessId: string, patch: BusinessProfilePatch): Promise<unknown>;
@@ -203,6 +205,22 @@ export function createV1RouteHandlers(deps: RouteDependencies) {
         if (typeof input.is_default === "boolean") patch.isDefault = input.is_default;
         if (Object.keys(patch).length === 0) throw new ApiError(400, "VALIDATION_ERROR", "At least one branch field is required");
         return json(branchDto(await deps.workspace(profile.id).updateBranch(businessId, branchId, patch)), 200, requestId);
+      } catch (error) { return errorResponse(error, requestId); }
+    },
+
+    createProductImportUpload: async (request: Request, businessId: string): Promise<Response> => {
+      const requestId = readRequestId(deps);
+      try {
+        const user = await identity(request, deps);
+        const profile = await getOrCreateProfile(deps.profiles, user);
+        await deps.access.assertMember({ userId: profile.id, businessId });
+        await deps.access.assertPermission({ userId: profile.id, businessId, permission: "products.import" });
+        await deps.access.assertFeature({ userId: profile.id, businessId, feature: "product_import" });
+        const input = validateSignedImportUploadRequest(await body(request));
+        const extension = input.file_name.slice(input.file_name.lastIndexOf(".")).toLowerCase();
+        const objectPath = businessId + "/imports/" + crypto.randomUUID() + extension;
+        const signed = await deps.importStorage.createSignedUploadUrl({ bucket: PRODUCT_IMPORT_UPLOAD_POLICY.bucket, objectPath, expiresIn: PRODUCT_IMPORT_UPLOAD_POLICY.expiresInSeconds });
+        return json({ bucket: PRODUCT_IMPORT_UPLOAD_POLICY.bucket, object_path: objectPath, upload_url: signed.signedUrl, token: signed.token, expires_in: PRODUCT_IMPORT_UPLOAD_POLICY.expiresInSeconds }, 201, requestId);
       } catch (error) { return errorResponse(error, requestId); }
     },
 
