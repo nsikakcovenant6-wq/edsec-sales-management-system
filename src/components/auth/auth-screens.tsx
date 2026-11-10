@@ -5,7 +5,7 @@ import { useOnboardingDraft } from "@/components/auth/onboarding-draft";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { api, ApiError, type Category, type Membership, type Branch } from "@/lib/api/client";
 import { getOnboardingRoute, canCreateAdditionalBranch } from "@/lib/onboarding/flow";
-import { saveBusinessProfile, saveBusinessCategories, saveBranchSetup, saveStoreConfiguration } from "@/lib/onboarding/actions";
+import { saveBusinessProfile, loadBusinessCategories, saveBusinessCategories, saveBranchSetup, saveStoreConfiguration } from "@/lib/onboarding/actions";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Building2, Check, ChevronRight, ShieldCheck, Sparkles } from "lucide-react";
 
@@ -151,7 +151,7 @@ export function AuthScreen({ screen, initialEmail = "" }: { screen: AuthName; in
 type OnboardingStep = "welcome" | "business" | "categories" | "branches" | "store-configuration" | "complete";
 export function OnboardingScreen({ step }: { step: OnboardingStep }) {
   const router = useRouter();
-  const { draft, updateBusiness, toggleCategory, addBranch, updateBranch, removeBranch } = useOnboardingDraft();
+  const { draft, updateBusiness, toggleCategory, replaceCategories, addBranch, updateBranch, removeBranch } = useOnboardingDraft();
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
