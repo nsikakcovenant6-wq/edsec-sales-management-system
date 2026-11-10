@@ -187,12 +187,13 @@ export function OnboardingScreen({ step }: { step: OnboardingStep }) {
         }
         setMembership(selectedMember); setBusinessId(selectedMember.business_id);
         window.localStorage.setItem("edsec.activeBusinessId", selectedMember.business_id);
-        const [business, onboarding, branchPage] = await Promise.all([
-          api.getBusiness(selectedMember.business_id),
+        const [{ business, categoryIds }, onboarding, branchPage] = await Promise.all([
+          loadBusinessCategories(selectedMember.business_id),
           api.getOnboarding(selectedMember.business_id),
           api.listBranches(selectedMember.business_id),
         ]);
         if (!active) return;
+        replaceCategories(categoryIds);
         updateBusiness("name", business.name);
         updateBusiness("email", business.email ?? "");
         updateBusiness("phone", business.phone ?? "");
