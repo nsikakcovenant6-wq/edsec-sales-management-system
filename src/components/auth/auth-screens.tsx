@@ -36,10 +36,6 @@ function Field({ label, type = "text", placeholder, autoComplete, value, default
   const id = useId();
   return <div><label className={labelClass} htmlFor={id}>{label}{required && <span className="ml-1 text-rose-600" aria-label="required">*</span>}</label><input id={id} aria-invalid={invalid || undefined} aria-describedby={describedBy} className={fieldClass + (invalid ? " border-rose-500 focus:border-rose-500 focus:ring-rose-100" : "")} type={type} placeholder={placeholder} autoComplete={autoComplete} value={value} defaultValue={defaultValue} onChange={onChange ? (event) => onChange(event.target.value) : undefined} name={name} minLength={minLength} maxLength={maxLength} pattern={pattern} inputMode={inputMode} required={required}/></div>;
 }
-function Notice({ children }: { children: React.ReactNode }) {
-  return <div role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800">{children}</div>;
-}
-
 type AuthName = "register" | "verify-email" | "login" | "forgot-password" | "reset-password";
 export function AuthScreen({ screen }: { screen: AuthName }) {
   const router = useRouter();
