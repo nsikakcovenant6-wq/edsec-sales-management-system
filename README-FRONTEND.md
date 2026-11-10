@@ -13,7 +13,8 @@
 1. Copy `.env.example` to `.env.local` and provide the real EDSEC project values for Next.js. Also copy `backend/.env.example` to `backend/.env` for local Prisma CLI/runtime use. Do not commit either file or any secrets.
 2. Run `npm install`.
 3. Run `npm run db:generate` (Prisma generation requires a non-empty `DATABASE_URL`; it does not connect to the database).
-4. Run `npm run dev`.
+4. Run `npm run backend:build` to compile the backend handler package into `backend/dist/`.
+5. Run `npm run dev`. Typecheck, tests and production build also compile this package automatically.
 
 Verification commands:
 
@@ -61,7 +62,7 @@ Next.js App Router adapters mount the backend's server-only `getV1RouteHandlers(
 - `GET/POST /api/v1/businesses/{business_id}/branches`
 - `PATCH /api/v1/businesses/{business_id}/branches/{branch_id}`
 
-The backend package under `backend/` is included byte-for-byte from PR #5 so the App Router can import its server handlers. Its source, Prisma schema mirror, SQL, tests and package manifest are not edited on the frontend branch. Prisma, the PostgreSQL adapter and the service-role Supabase client run server-side only.
+The backend package under `backend/` is included byte-for-byte from PR #5. It is compiled to `backend/dist/` before the App Router imports its server handlers; its source, Prisma schema mirror, SQL, tests and package manifest are not edited on the frontend branch. Its source, Prisma schema mirror, SQL, tests and package manifest are not edited on the frontend branch. Prisma, the PostgreSQL adapter and the service-role Supabase client run server-side only.
 
 ## Environment
 

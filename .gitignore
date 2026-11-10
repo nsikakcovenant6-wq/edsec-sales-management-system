@@ -10,3 +10,6 @@ coverage/
 !.env.example
 .DS_Store
 .vercel/
+
+# Compiled backend workspace output
+backend/dist/

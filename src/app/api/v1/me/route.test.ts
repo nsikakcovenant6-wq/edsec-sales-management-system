@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const me = vi.hoisted(() => vi.fn());
-vi.mock("@backend/src/http/runtime", () => ({ getV1RouteHandlers: () => ({ me }) }));
+vi.mock("@backend/dist/http/runtime", () => ({ getV1RouteHandlers: () => ({ me }) }));
 import { GET } from "./route";
 describe("GET /api/v1/me route adapter", () => {
   beforeEach(() => me.mockReset());

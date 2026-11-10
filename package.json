@@ -4,13 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run backend:build && next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:generate": "npm run prisma:generate --workspace backend"
+    "db:generate": "npm run prisma:generate --workspace backend",
+    "backend:build": "npm run build --workspace backend",
+    "pretypecheck": "npm run backend:build",
+    "pretest": "npm run backend:build"
   },
   "dependencies": {
     "clsx": "^2.1.1",
