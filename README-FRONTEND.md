@@ -62,3 +62,12 @@ The application includes a responsive workspace shell, placeholder module routes
 ## Continuous integration
 
 `.github/workflows/frontend-ci.yml` runs dependency installation, ESLint, TypeScript checking, Vitest and the Next.js production build on GitHub-hosted Ubuntu runners for relevant pull request and feature-branch changes. Report checks as passing only after the workflow completes successfully.
+
+
+## Phase 1 integration
+
+- Browser Supabase Auth reads `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`; no project credentials are committed.
+- Next.js App Router mounts the backend handler factory at `/api/v1/*`. Server-only runtime variables are `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `DATABASE_URL`.
+- Run `npm install`, `npm run db:generate`, then lint, typecheck, tests and build. Prisma client generation requires a non-empty `DATABASE_URL` but does not connect to it.
+- Add the actual deployed application origins to the Supabase Auth redirect allowlist. Recovery callback URLs are derived from the browser's current origin; no host is hard-coded.
+- Live Auth and production database/RLS sign-off require the real EDSEC Supabase project.
