@@ -7,7 +7,7 @@ import { api, ApiError, type Category, type Membership, type Branch } from "@/li
 import { getOnboardingRoute, canCreateAdditionalBranch } from "@/lib/onboarding/flow";
 import { saveBusinessProfile, saveBusinessCategories, saveBranchSetup, saveStoreConfiguration } from "@/lib/onboarding/actions";
 import { useEffect, useId, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Building2, Check, ChevronRight, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, Check, ChevronRight, ShieldCheck, Sparkles } from "lucide-react";
 
 const fieldClass = "mt-2 w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100";
 const labelClass = "block text-sm font-medium text-slate-700";
