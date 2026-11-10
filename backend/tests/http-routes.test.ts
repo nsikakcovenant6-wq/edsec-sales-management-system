@@ -15,10 +15,37 @@ function dependencies() {
   });
   return {
     authClient, profiles, businesses, categories: () => categories,
-    onboarding: () => onboarding, access, categoryCatalog, workspace,
+    onboarding: () => onboarding, access, categoryCatalog,
+    importStorage: { createSignedUploadUrl: vi.fn().mockResolvedValue({ signedUrl: "https://storage.example.test/signed", token: "signed-token", path: "business-1/imports/file.csv" }) },
+    workspace,
     requestId: () => "test-request",
   };
 }
+
+describe("Phase 2 signed product import upload", () => {
+  it("checks permissions and feature before issuing a tenant-scoped signed URL", async () => {
+    const deps = dependencies();
+    const handlers = createV1RouteHandlers(deps);
+    const response = await handlers.createProductImportUpload(new Request("https://example.test", {
+      method: "POST", headers: { authorization: "Bearer valid-token", "content-type": "application/json" },
+      body: JSON.stringify({ file_name: "products.csv", content_type: "text/csv", size_bytes: 1024 }),
+    }), "business-1");
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ data: { bucket: "edsec-product-imports", upload_url: "https://storage.example.test/signed", token: "signed-token" } });
+    expect(deps.access.assertPermission).toHaveBeenCalledWith({ userId: "profile-1", businessId: "business-1", permission: "products.import" });
+    expect(deps.access.assertFeature).toHaveBeenCalledWith({ userId: "profile-1", businessId: "business-1", feature: "product_import" });
+  });
+  it("rejects unsupported files before requesting storage", async () => {
+    const deps = dependencies();
+    const handlers = createV1RouteHandlers(deps);
+    const response = await handlers.createProductImportUpload(new Request("https://example.test", {
+      method: "POST", headers: { authorization: "Bearer valid-token", "content-type": "application/json" },
+      body: JSON.stringify({ file_name: "products.xls", content_type: "application/vnd.ms-excel", size_bytes: 1024 }),
+    }), "business-1");
+    expect(response.status).toBe(400);
+    expect(deps.importStorage.createSignedUploadUrl).not.toHaveBeenCalled();
+  });
+});
 
 describe("Phase 1 REST handlers", () => {
 
