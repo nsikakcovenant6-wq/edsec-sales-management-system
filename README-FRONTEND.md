@@ -2,72 +2,86 @@
 
 ## Stack
 
-- Next.js App Router and React 19
-- TypeScript strict mode
-- Tailwind CSS 4
-- Lucide icons
-- Vitest for isolated frontend unit tests
+- Next.js App Router, React 19 and strict TypeScript
+- Tailwind CSS 4 and Lucide icons
+- Supabase Auth browser client
+- Backend Phase 1 handler factory mounted through Next.js App Router
+- Vitest for unit and mocked integration tests
 
 ## Development
 
+1. Copy `.env.example` to `.env.local` and provide the real EDSEC project values. Do not commit secrets.
+2. Run `npm install`.
+3. Run `npm run db:generate` (Prisma generation requires a non-empty `DATABASE_URL`; it does not connect to the database).
+4. Run `npm run dev`.
+
+Verification commands:
+
 ```bash
-npm install
-npm run dev
-npm run typecheck
 npm run lint
+npm run typecheck
 npm test
 npm run build
 ```
 
-## Phase 1 account and onboarding screens
+## Account routes
 
-Account routes:
-- `/auth/register` — registration details, terms acknowledgement and password confirmation.
-- `/auth/verify-email` — six-digit numeric OTP input and resend cooldown.
-- `/auth/login` — email/password sign-in screen.
-- `/auth/forgot-password` — recovery request screen.
-- `/auth/reset-password` — new password and confirmation.
+- `/auth/register` — Supabase account registration with full-name metadata.
+- `/auth/verify-email` — six-digit signup OTP verification and resend.
+- `/auth/login` — Supabase email/password login and workspace resume.
+- `/auth/forgot-password` — Supabase password recovery request.
+- `/auth/reset-password` — update password from the recovery session.
+- Workspace header — sign out using Supabase Auth.
 
-Onboarding routes:
-- `/onboarding/welcome`
-- `/onboarding/business` — business name, contact details, address, currency and time zone.
-- `/onboarding/categories` — multi-select category preview with a non-empty selection guard.
-- `/onboarding/branches` — explains that the backend creates `Main Branch` (`MAIN`) automatically and provides repeatable additional branch forms (name, code and optional address).
-- `/onboarding/store-configuration` — explicit placeholder for a required backend step whose fields and save operation are not yet defined.
-- `/onboarding/complete` — preview review only; it does not mark server onboarding complete.
+The browser client reads only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Password recovery callback URLs are derived from the current browser origin; no project URL or redirect host is hard-coded. Supabase Auth must allowlist the actual deployed origins, and the email template must deliver a six-digit signup OTP compatible with `verifyOtp(type: "signup")`.
 
-All these flows are intentionally presentation-only. Form validation and navigation run in the browser, but no account is created, OTP is sent or verified, recovery email is sent, password is changed, category is persisted, or business/branch data is saved. OTP resend is also a UI preview only. The onboarding route layout holds business details, category choices and additional branch drafts in a shared in-memory context so they survive step-to-step navigation; they reset on refresh or when leaving the onboarding layout. Password confirmation, category selection, business name and additional branch name/code receive local validation. These checks are usability safeguards only and do not establish backend password rules or API requirements.
+## Onboarding routes
 
-## Contract review boundary
+- `/onboarding/welcome` — resumes the backend's current onboarding step.
+- `/onboarding/business` — creates the business once, or updates the existing business profile.
+- `/onboarding/categories` — loads active category UUIDs and persists selections.
+- `/onboarding/branches` — lists server branches, uses the automatically created `Main Branch` / `MAIN`, and gates extra branch create/update actions on both permission and `multi_branch` entitlement.
+- `/onboarding/store-configuration` — persists VAT enabled, VAT rate (basis points) and tax mode through business settings.
+- `/onboarding/complete` — reflects backend onboarding completion.
 
-The frontend reviewed the draft v1.3 contract in PR #4. The UI must use the live `GET /categories` response and its category UUIDs once the contract is approved; the category names currently shown are illustrative. Business creation uses `POST /businesses`; business contact fields are represented in `BusinessUpdate`; branch creation uses `BranchWrite` with required name and code. The backend provisioning service creates `Main Branch` with code `MAIN`; the frontend does not collect duplicate primary-branch fields. Additional branches remain dependent on branch route handlers being implemented.
+Business profile, category associations, branches, store configuration and onboarding progress are persisted through the backend. Non-sensitive in-progress form drafts are also cached in browser local storage so a refresh on the same browser does not discard unfinished fields. The backend-created Main Branch is never submitted as an additional branch; branch creation checks the existing branch codes and skips `MAIN`.
 
-The current runtime PR #5 route factory still needs the public category-list handler, business profile update handler and branch handlers. The `/me` runtime response also needs alignment with the `MeResponse` schema. Store configuration is a required onboarding step without a payload or save endpoint in v1.3.
+## API integration
 
-Do not wire API requests or Supabase Auth until the Backend Lead publishes a stable contract and confirms the authentication/session configuration. Signup OTP type, password policy, user metadata and web/Capacitor recovery redirect allowlists remain provisional pending live EDSEC Supabase verification.
+The typed client in `src/lib/api/client.ts` sends the current Supabase access token as a Bearer token, validates the standard `{ data, meta }` response envelope and maps backend `{ error }` bodies into `ApiError` instances.
+
+Next.js App Router adapters mount the backend's server-only `getV1RouteHandlers()` implementation:
+
+- `GET /api/v1/me`
+- `GET /api/v1/categories`
+- `POST /api/v1/businesses`
+- `GET/PATCH /api/v1/businesses/{business_id}`
+- `PUT /api/v1/businesses/{business_id}/categories`
+- `GET/PATCH /api/v1/businesses/{business_id}/onboarding`
+- `GET/POST /api/v1/businesses/{business_id}/branches`
+- `PATCH /api/v1/businesses/{business_id}/branches/{branch_id}`
+
+The backend package under `backend/` is included byte-for-byte from PR #5 so the App Router can import its server handlers. Its source, Prisma schema mirror, SQL, tests and package manifest are not edited on the frontend branch. Prisma, the PostgreSQL adapter and the service-role Supabase client run server-side only.
+
+## Environment
+
+Root `.env.example` lists the required variables without supplying credentials:
+
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` — browser-safe Supabase Auth configuration.
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `DATABASE_URL` — server-only backend runtime configuration.
+
+Never expose `SUPABASE_SERVICE_ROLE_KEY` through a `NEXT_PUBLIC_*` variable.
+
+## Known integration limitation
+
+The current backend exposes `PUT /businesses/{business_id}/categories` to persist category IDs, but it does not expose a read operation for the business's selected category IDs (the business DTO and `/me` membership summary omit them). The selected IDs therefore rehydrate from the local browser draft on the same device, but cannot yet be reconstructed from the server on a different device/browser. The Backend Lead needs to add selected category IDs to the business response or provide a protected read endpoint to complete cross-device category resume.
+
+Live OTP delivery, password recovery redirects and production database/RLS operation still require the real EDSEC Supabase/PostgreSQL environment. CI uses a build-only placeholder `DATABASE_URL` for Prisma client generation; it does not represent production credentials or a live database test.
 
 ## Foundation scope
 
-The application includes a responsive workspace shell, placeholder module routes, loading/error/empty states, generic permission helpers, and exact minor-unit money formatting. The permission utilities accept identifiers supplied by an approved contract; they do not define role names or permission keys.
-
-## Structure
-
-- `src/app/` — App Router pages and global styles
-- `src/components/layout/` — responsive application shell
-- `src/components/auth/` — account and onboarding presentation screens
-- `src/components/ui/` — reusable presentation components
-- `src/lib/` — navigation, generic permission helpers and exact money formatting
-- `src/lib/*.test.ts` — unit tests
+The workspace shell includes responsive navigation, permission-aware navigation, loading/error/empty states and exact minor-unit money formatting. Module pages outside Phase 1 remain placeholders.
 
 ## Continuous integration
 
-`.github/workflows/frontend-ci.yml` runs dependency installation, ESLint, TypeScript checking, Vitest and the Next.js production build on GitHub-hosted Ubuntu runners for relevant pull request and feature-branch changes. Report checks as passing only after the workflow completes successfully.
-
-
-## Phase 1 integration
-
-- Browser Supabase Auth reads `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`; no project credentials are committed.
-- Next.js App Router mounts the backend handler factory at `/api/v1/*`. Server-only runtime variables are `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `DATABASE_URL`.
-- Run `npm install`, `npm run db:generate`, then lint, typecheck, tests and build. Prisma client generation requires a non-empty `DATABASE_URL` but does not connect to it.
-- Add the actual deployed application origins to the Supabase Auth redirect allowlist. Recovery callback URLs are derived from the browser's current origin; no host is hard-coded.
-- Live Auth and production database/RLS sign-off require the real EDSEC Supabase project.
+`.github/workflows/frontend-ci.yml` installs the frontend/backend workspace dependencies, generates the Prisma client, then runs ESLint, TypeScript checking, Vitest and the Next.js production build. Only completed successful GitHub Actions runs are reported as green.
