@@ -5,13 +5,26 @@ const api = vi.hoisted(() => ({
   getOnboarding: vi.fn(), listBranches: vi.fn(), createBranch: vi.fn(),
 }));
 vi.mock("@/lib/api/client", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api/client")>()), api }));
-import { saveBusinessProfile, saveBusinessCategories, saveBranchSetup } from "./actions";
+import { saveBusinessProfile, saveBusinessCategories, saveBranchSetup, loadBusinessCategories } from "./actions";
 const member: Membership = { business_id:"b1", business_name:"Shop", role:"Owner", permissions:["branches.manage"], permission_scopes:{}, branch_ids:["main"], default_branch_id:"main", subscription_status:"trial", features:[{key:"multi_branch",enabled:false,limit:null,usage:0}], onboarding:{current_step:"business_profile",completed_steps:[],skipped_steps:[],status:"not_started"} };
 describe("mocked onboarding integration", () => {
   beforeEach(() => { vi.clearAllMocks(); api.me.mockResolvedValue({memberships:[member]}); api.patchOnboarding.mockResolvedValue({}); api.getOnboarding.mockResolvedValue({current_step:"business_category",completed_steps:["business_profile"],skipped_steps:[],status:"in_progress"}); api.listBranches.mockResolvedValue({items:[{id:"main",name:"Main Branch",code:"MAIN",address:null,is_active:true,is_default:true}],next_cursor:null}); });
   it("reuses the backend-created business instead of creating a duplicate on resume", async () => {
     const result = await saveBusinessProfile({name:"Shop"}, null);
     expect(result.businessId).toBe("b1"); expect(api.createBusiness).not.toHaveBeenCalled(); expect(api.patchBusiness).toHaveBeenCalledWith("b1",{name:"Shop"});
+  });
+  it("restores selected UUIDs from the requested business profile after reload", async () => {
+    api.getBusiness.mockImplementation(async (id: string) => ({ id, name: id, category_ids: id === "b1" ? ["cat-a", "cat-b", "cat-a"] : ["cat-c"] }));
+    const first = await loadBusinessCategories("b1");
+    const second = await loadBusinessCategories("b2");
+    expect(api.getBusiness).toHaveBeenNthCalledWith(1, "b1");
+    expect(api.getBusiness).toHaveBeenNthCalledWith(2, "b2");
+    expect(first.categoryIds).toEqual(["cat-a", "cat-b"]);
+    expect(second.categoryIds).toEqual(["cat-c"]);
+  });
+  it("treats an empty persisted category array as no selected categories", async () => {
+    api.getBusiness.mockResolvedValue({ id: "b-empty", name: "Empty", category_ids: [] });
+    await expect(loadBusinessCategories("b-empty")).resolves.toMatchObject({ categoryIds: [] });
   });
   it("persists category UUIDs and advances the backend onboarding step", async () => {
     await saveBusinessCategories("b1",["category-1"]);
