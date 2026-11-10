@@ -102,6 +102,7 @@ export function parseCsv(
     if (values.length > maxColumns) throw new ImportValidationError("TOO_MANY_COLUMNS", `Row ${index + 2} has too many columns`);
     return { rowNumber: index + 2, values: headers.map((_, column) => values[column] ?? "") };
   });
+  assertNoFormulaCells(rows);
   return { headers, rows };
 }
 
@@ -168,4 +169,53 @@ export function parseImportRow(
     },
     errors,
   };
+}
+
+
+const IMPORT_FIELDS = new Set<ImportField>([
+  "name", "description", "sku", "barcode", "selling_price", "cost_price",
+  "category_id", "tracking_type",
+]);
+
+/** Validate an explicit source-header to canonical-field mapping. */
+export function validateColumnMapping(
+  headers: string[],
+  mapping: Record<string, string>,
+): Record<string, ImportField> {
+  const normalizedHeaders = new Set(headers.map(normalizeHeader));
+  const result: Record<string, ImportField> = {};
+  const usedFields = new Set<string>();
+  for (const [source, target] of Object.entries(mapping)) {
+    const header = normalizeHeader(source);
+    if (!normalizedHeaders.has(header)) {
+      throw new ImportValidationError("UNKNOWN_SOURCE_COLUMN", `Mapped source column "${source}" does not exist`);
+    }
+    if (!IMPORT_FIELDS.has(target as ImportField)) {
+      throw new ImportValidationError("UNKNOWN_IMPORT_FIELD", `Mapped target field "${target}" is not supported`);
+    }
+    if (usedFields.has(target)) {
+      throw new ImportValidationError("DUPLICATE_FIELD_MAPPING", `More than one source column maps to "${target}"`);
+    }
+    usedFields.add(target);
+    result[header] = target as ImportField;
+  }
+  if (!usedFields.has("name") || !usedFields.has("selling_price")) {
+    throw new ImportValidationError("REQUIRED_FIELD_MAPPING", "Product name and selling price columns must be mapped");
+  }
+  return result;
+}
+
+/** Reject spreadsheet formula cells. Values are never evaluated by this importer. */
+export function assertNoFormulaCells(rows: Array<{ rowNumber: number; values: string[] }>): void {
+  for (const row of rows) {
+    for (let column = 0; column < row.values.length; column += 1) {
+      const value = row.values[column] ?? "";
+      if (/^[\\t\\r ]*[=+@]/.test(value) || /^[\\t\\r ]*-\\s*(?:[A-Za-z(]|\\d)/.test(value)) {
+        throw new ImportValidationError(
+          "FORMULA_NOT_ALLOWED",
+          `Formula-like content is not allowed (row ${row.rowNumber}, column ${column + 1})`,
+        );
+      }
+    }
+  }
 }
