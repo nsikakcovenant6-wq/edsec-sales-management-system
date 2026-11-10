@@ -3,7 +3,9 @@ import {
   decimalToMinorUnits,
   ImportValidationError,
   parseCsv,
-  parseImportRow,\n  validateColumnMapping,\n  assertNoFormulaCells,
+  parseImportRow,
+  validateColumnMapping,
+  assertNoFormulaCells,
 } from "./import-validation.js";
 
 describe("parseCsv", () => {
