@@ -29,6 +29,13 @@ export function getV1RouteHandlers() {
     onboarding: (profileId) => new PrismaOnboardingRepository(prisma, profileId),
     access,
     categoryCatalog: { listCategories: () => new PrismaWorkspaceRepository(prisma, "").listCategories() },
+    importStorage: {
+      createSignedUploadUrl: async ({ bucket, objectPath }) => {
+        const { data, error } = await authClient.storage.from(bucket).createSignedUploadUrl(objectPath, { upsert: false });
+        if (error || !data) throw new Error("IMPORT_UPLOAD_SIGNING_FAILED");
+        return { signedUrl: data.signedUrl, token: data.token, path: data.path };
+      },
+    },
     workspace: (profileId) => new PrismaWorkspaceRepository(prisma, profileId),
   });
   return runtime;
