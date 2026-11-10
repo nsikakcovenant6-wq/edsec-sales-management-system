@@ -2,12 +2,12 @@ name: Backend foundation CI
 
 on:
   pull_request:
-    branches: [backend/main]
+    branches: [backend/main, backend/phase-0-foundation-runtime]
     paths:
       - "backend/**"
       - ".github/workflows/backend-foundation-ci.yml"
   push:
-    branches: [backend/phase-0-foundation, backend/phase-0-foundation-runtime]
+    branches: [backend/phase-0-foundation, backend/phase-0-foundation-runtime, backend/phase-2-catalogue-import]
     paths:
       - "backend/**"
   workflow_dispatch:
