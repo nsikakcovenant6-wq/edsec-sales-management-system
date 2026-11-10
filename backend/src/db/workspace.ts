@@ -36,6 +36,7 @@ export class PrismaWorkspaceRepository {
           id: true, name: true, email: true, phone: true, address: true, logoObjectPath: true,
           countryCode: true, currencyCode: true, timezone: true, vatEnabled: true, vatRateBps: true,
           taxMode: true, defaultBranchId: true,
+          businessCategories: { select: { categoryId: true }, orderBy: { categoryId: "asc" } },
         },
       }),
     );
