@@ -210,7 +210,7 @@ export function assertNoFormulaCells(rows: Array<{ rowNumber: number; values: st
   for (const row of rows) {
     for (let column = 0; column < row.values.length; column += 1) {
       const value = row.values[column] ?? "";
-      if (/^[\\t\\r ]*[=+@]/.test(value) || /^[\\t\\r ]*-\\s*(?:[A-Za-z(]|\\d)/.test(value)) {
+      if (/^[\\t\\r ]*[=+@]/.test(value) || /^[\\t\\r ]*-\\s*[A-Za-z(]/.test(value)) {
         throw new ImportValidationError(
           "FORMULA_NOT_ALLOWED",
           `Formula-like content is not allowed (row ${row.rowNumber}, column ${column + 1})`,
