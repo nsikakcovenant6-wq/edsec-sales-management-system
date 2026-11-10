@@ -87,7 +87,11 @@ export function parseTemplateCopyRequest(value: unknown): TemplateCopyRequest {
     }
     if (key === "sku" && typeof item === "string" && item.length > 80) throw new ImportValidationError("INVALID_SKU", "sku cannot exceed 80 characters");
     if (key === "barcode" && typeof item === "string" && item.length > 120) throw new ImportValidationError("INVALID_BARCODE", "barcode cannot exceed 120 characters");
-    if (item !== undefined) result[key] = item as string | null;
+    if (item !== undefined) {
+      if (key === "sku") result.sku = item as string | null;
+      if (key === "barcode") result.barcode = item as string | null;
+      if (key === "category_id") result.category_id = item as string | null;
+    }
   }
   if (input.selling_price_minor !== undefined) {
     if (typeof input.selling_price_minor !== "string" || !/^(0|[1-9][0-9]*)$/.test(input.selling_price_minor)) {
