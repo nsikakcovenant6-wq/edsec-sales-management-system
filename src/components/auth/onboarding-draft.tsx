@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-type BranchDraft = { id: number; name: string; code: string; address: string };
+export type BranchDraft = { id: number; name: string; code: string; address: string };
 type BusinessDraft = { name: string; email: string; phone: string; address: string; currency: string; timezone: string };
 type OnboardingDraft = { business: BusinessDraft; categories: string[]; branches: BranchDraft[] };
 type DraftContextValue = { draft: OnboardingDraft; updateBusiness: (field: keyof BusinessDraft, value: string) => void; toggleCategory: (category: string) => void; addBranch: () => void; updateBranch: (id: number, field: keyof Omit<BranchDraft, "id">, value: string) => void; removeBranch: (id: number) => void; replaceDraft: (draft: OnboardingDraft) => void };

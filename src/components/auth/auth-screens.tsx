@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useOnboardingDraft } from "@/components/auth/onboarding-draft";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { api } from "@/lib/api/client";
+import { api, ApiError, type Category, type Membership, type Branch } from "@/lib/api/client";
 import { getOnboardingRoute, canCreateAdditionalBranch } from "@/lib/onboarding/flow";
 import { saveBusinessProfile, saveBusinessCategories, saveBranchSetup, saveStoreConfiguration } from "@/lib/onboarding/actions";
 import { useEffect, useId, useState, type ReactNode } from "react";
@@ -238,7 +238,7 @@ export function OnboardingScreen({ step }: { step: OnboardingStep }) {
         phone: draft.business.phone.trim() || null, address: draft.business.address.trim() || null,
         currency_code: draft.business.currency, timezone: draft.business.timezone,
       }, businessId);
-      setBusinessId(result.businessId); setMembership(result.membership);
+      setBusinessId(result.businessId); setMembership(result.membership); window.localStorage.setItem("edsec.activeBusinessId", result.businessId);
       router.push("/onboarding/categories");
     });
   }

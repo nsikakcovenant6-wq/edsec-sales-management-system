@@ -18,7 +18,6 @@ export async function saveBusinessProfile(input: BusinessCreate, currentBusiness
       // createBusiness provisions Main Branch atomically; never send a second MAIN branch.
     }
   }
-  window.localStorage.setItem("edsec.activeBusinessId", businessId);
   await api.patchOnboarding(businessId, { current_step: "business_category", completed_steps: ["business_profile"] });
   const me = await api.me();
   const membership = me.memberships.find((item) => item.business_id === businessId) ?? null;
