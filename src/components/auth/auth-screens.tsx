@@ -214,6 +214,9 @@ export function OnboardingScreen({ step }: { step: OnboardingStep }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function exitSetup() {
+    try { await getSupabaseBrowserClient().auth.signOut(); } finally { window.localStorage.removeItem("edsec.activeBusinessId"); router.replace("/auth/login"); }
+  }
   async function runAction(action: () => Promise<void>) {
     setBusy(true); setNotice("");
     try { await action(); }
@@ -263,7 +266,7 @@ export function OnboardingScreen({ step }: { step: OnboardingStep }) {
   }
 
   return <Frame>
-    <div className="mb-7 flex items-center justify-between"><Link href="/auth/login" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--muted)]"><ArrowLeft size={15}/> Sign out / exit</Link><span className="text-xs font-medium text-[var(--muted)]">{membership ? "Saved workspace setup" : "New workspace setup"}</span></div>
+    <div className="mb-7 flex items-center justify-between"><button type="button" onClick={exitSetup} className="inline-flex items-center gap-2 text-sm font-medium text-[var(--muted)]"><ArrowLeft size={15}/> Sign out</button><span className="text-xs font-medium text-[var(--muted)]">{membership ? "Saved workspace setup" : "New workspace setup"}</span></div>
     <div className="mb-8"><div className="mb-3 flex justify-between text-xs text-[var(--muted)]"><span>{step === "welcome" ? "Getting started" : step === "complete" ? "Onboarding status" : "Step " + (current + 1) + " of 4"}</span><span>{progress}%</span></div><div role="progressbar" aria-label="Onboarding progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-[var(--brand)] transition-all" style={{ width: progress + "%" }}/></div></div>
     <div className="mb-8"><span className="mb-4 grid size-12 place-items-center rounded-2xl bg-[var(--brand-soft)] text-[var(--brand)]"><Building2 size={22}/></span><h1 className="text-3xl font-semibold tracking-tight">{titles[step]}</h1><p className="mt-3 text-sm leading-6 text-[var(--muted)]">{descriptions[step]}</p></div>
     {loading && <div role="status" className="rounded-xl border border-[var(--border)] bg-white p-4 text-sm text-[var(--muted)]">Loading your saved workspace and onboarding progress…</div>}

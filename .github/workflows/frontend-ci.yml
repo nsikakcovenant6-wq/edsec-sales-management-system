@@ -5,6 +5,7 @@ on:
     branches: [frontend/main]
     paths:
       - "src/**"
+      - "README-FRONTEND.md"
       - "backend/**"
       - ".github/workflows/frontend-ci.yml"
       - "package.json"
