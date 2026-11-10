@@ -5,6 +5,7 @@ import { getOrCreateProfile, type ProfileRepository } from "../profiles/profile.
 import { patchOnboardingProgress, type OnboardingPatch, type OnboardingProgress, type OnboardingRepository } from "../onboarding/progress.js";
 import { ApiError } from "./errors.js";
 import { PRODUCT_IMPORT_UPLOAD_POLICY, validateSignedImportUploadRequest } from "../products/import-storage.js";
+import { ImportValidationError } from "../products/import-validation.js";
 import type { BusinessProfilePatch, BranchWrite, CategoryRecord, MembershipSummary } from "../db/workspace.js";
 
 export interface BusinessAccess {
@@ -72,6 +73,7 @@ async function identity(request: Request, deps: RouteDependencies): Promise<Veri
 }
 function errorResponse(error: unknown, requestId: string): Response {
   if (error instanceof ApiError) return Response.json(error.toBody(requestId), { status: error.status });
+  if (error instanceof ImportValidationError) return Response.json({ error: { code: error.code, message: error.message, request_id: requestId } }, { status: 400 });
   const code = error instanceof Error ? error.message : "";
   const known: Record<string, [number, string]> = {
     EMAIL_NOT_VERIFIED: [403, "Verify your email before creating a business"],
