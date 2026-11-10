@@ -2,6 +2,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useOnboardingDraft } from "@/components/auth/onboarding-draft";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { api } from "@/lib/api/client";
+import { getOnboardingRoute, canCreateAdditionalBranch } from "@/lib/onboarding/flow";
+import { saveBusinessProfile, saveBusinessCategories, saveBranchSetup, saveStoreConfiguration } from "@/lib/onboarding/actions";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Building2, Check, ChevronRight, ShieldCheck, Sparkles } from "lucide-react";
 
@@ -39,47 +43,117 @@ function Notice({ children }: { children: React.ReactNode }) {
 
 type AuthName = "register" | "verify-email" | "login" | "forgot-password" | "reset-password";
 export function AuthScreen({ screen }: { screen: AuthName }) {
+  const router = useRouter();
   const [notice, setNotice] = useState("");
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [otp, setOtp] = useState("");
   const [resendSeconds, setResendSeconds] = useState(30);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const config: Record<AuthName, { title: string; description: string; action: string }> = {
-    register: { title: "Create your account", description: "Start setting up your EDSEC workspace.", action: "Continue to email verification" },
-    "verify-email": { title: "Verify your email", description: "Enter the six-digit code. This is a UI preview; no code has been sent.", action: "Verify email" },
-    login: { title: "Welcome back", description: "Sign in to continue to your business workspace.", action: "Sign in" },
-    "forgot-password": { title: "Reset your password", description: "Enter the email address associated with your account.", action: "Send recovery instructions" },
-    "reset-password": { title: "Choose a new password", description: "Create and confirm a new password for your account.", action: "Save new password" }
-  };
+  const [busy, setBusy] = useState(false);
   const isRegister = screen === "register";
   const isLogin = screen === "login";
   const isVerify = screen === "verify-email";
   const isForgot = screen === "forgot-password";
   const needsPassword = isRegister || isLogin || screen === "reset-password";
   const confirmMismatch = (isRegister || screen === "reset-password") && confirmPassword.length > 0 && password !== confirmPassword;
+  const config: Record<AuthName, { title: string; description: string; action: string }> = {
+    register: { title: "Create your account", description: "Create your EDSEC account to start a business workspace.", action: "Create account" },
+    "verify-email": { title: "Verify your email", description: "Enter the six-digit code sent to your email address.", action: "Verify email" },
+    login: { title: "Welcome back", description: "Sign in to continue to your business workspace.", action: "Sign in" },
+    "forgot-password": { title: "Reset your password", description: "We’ll send password recovery instructions to your email.", action: "Send recovery instructions" },
+    "reset-password": { title: "Choose a new password", description: "Create and confirm a new password for your account.", action: "Save new password" }
+  };
+  useEffect(() => {
+    const queryEmail = new URLSearchParams(window.location.search).get("email");
+    if (queryEmail) setEmail(queryEmail);
+  }, []);
   useEffect(() => {
     if (!isVerify || resendSeconds === 0) return;
     const timer = window.setTimeout(() => setResendSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
     return () => window.clearTimeout(timer);
   }, [isVerify, resendSeconds]);
-  const submitMessage = isRegister ? "Registration details validated in this preview. No account was created." : isVerify ? "Verification preview submitted. No OTP was checked." : isLogin ? "Sign-in preview submitted. Authentication is not connected." : isForgot ? "Recovery preview submitted. No email was sent." : "Password preview submitted. No password was changed.";
+
+  async function routeAfterAuthentication() {
+    const me = await api.me();
+    const preferredId = window.localStorage.getItem("edsec.activeBusinessId");
+    const membership = me.memberships.find((item) => item.business_id === preferredId) ?? me.memberships[0];
+    if (!membership) { router.replace("/onboarding/welcome"); return; }
+    window.localStorage.setItem("edsec.activeBusinessId", membership.business_id);
+    router.replace(getOnboardingRoute(membership.onboarding.current_step));
+  }
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setNotice("");
+    if ((isRegister || screen === "reset-password") && password !== confirmPassword) {
+      setNotice("Your passwords do not match. Please check both fields."); return;
+    }
+    setBusy(true);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      if (isRegister) {
+        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim() } } });
+        if (error) throw error;
+        if (data.session) { await routeAfterAuthentication(); return; }
+        router.push(`/auth/verify-email?email=${encodeURIComponent(email.trim())}`);
+        return;
+      }
+      if (isVerify) {
+        const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: otp, type: "signup" });
+        if (error) throw error;
+        await routeAfterAuthentication(); return;
+      }
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw error;
+        await routeAfterAuthentication(); return;
+      }
+      if (isForgot) {
+        const redirectTo = new URL("/auth/reset-password", window.location.origin).toString();
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+        if (error) throw error;
+        setNotice("If the account exists, Supabase will send password recovery instructions. Check your inbox.");
+        return;
+      }
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setNotice("Your password has been updated. Please sign in with your new password.");
+      router.replace("/auth/login");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Authentication could not be completed. Please try again.");
+    } finally { setBusy(false); }
+  }
+
+  async function resendCode() {
+    if (resendSeconds > 0 || !email.trim()) return;
+    setBusy(true); setNotice("");
+    try {
+      const { error } = await getSupabaseBrowserClient().auth.resend({ type: "signup", email: email.trim() });
+      if (error) throw error;
+      setResendSeconds(30);
+      setNotice("A new verification code has been requested.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "A new code could not be requested."); }
+    finally { setBusy(false); }
+  }
+
   return <Frame><div className="mb-8"><p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand)]">Account access</p><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{config[screen].title}</h1><p className="mt-3 text-sm leading-6 text-[var(--muted)]">{config[screen].description}</p></div>
-    <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); if ((isRegister || screen === "reset-password") && password !== confirmPassword) { setNotice("Your passwords do not match. Please check both fields."); return; } setNotice(submitMessage); }}>
-      {isRegister && <Field label="Full name" placeholder="Your full name" autoComplete="name" minLength={2}/>}
-      <Field label="Email address" type="email" placeholder="you@company.com" autoComplete="email"/>
+    <form className="space-y-5" onSubmit={submit}>
+      {isRegister && <Field label="Full name" placeholder="Your full name" autoComplete="name" minLength={2} value={fullName} onChange={setFullName}/>}
+      <Field label="Email address" type="email" placeholder="you@company.com" autoComplete="email" value={email} onChange={setEmail}/>
       {needsPassword && <Field label={screen === "reset-password" ? "New password" : "Password"} type="password" placeholder="Enter your password" autoComplete={isLogin ? "current-password" : "new-password"} value={password} onChange={(value) => { setPassword(value); setNotice(""); }}/>}
       {(isRegister || screen === "reset-password") && <div><Field label="Confirm password" type="password" placeholder="Re-enter your password" autoComplete="new-password" value={confirmPassword} onChange={(value) => { setConfirmPassword(value); setNotice(""); }} invalid={confirmMismatch} describedBy="password-match-help"/><p id="password-match-help" aria-live="polite" className={"mt-2 text-xs " + (confirmMismatch ? "text-rose-700" : "text-[var(--muted)]")}>{confirmPassword.length === 0 ? "Enter the same password again to confirm it." : confirmMismatch ? "The passwords do not match yet." : "Passwords match."}</p></div>}
       {isVerify && <label className={labelClass}>Six-digit code<input className={fieldClass + " text-center text-2xl font-semibold tracking-[0.65em]"} aria-label="Six-digit email verification code" aria-describedby="otp-help" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" placeholder="000000" value={otp} onChange={(event) => { setOtp(event.target.value.replace(/\D/g, "").slice(0, 6)); setNotice(""); }} required/><span id="otp-help" className="mt-2 block text-xs font-normal text-[var(--muted)]">Enter the code shown in your verification email.</span></label>}
       {isRegister && <label className="flex items-start gap-3 text-xs leading-5 text-[var(--muted)]"><input type="checkbox" className="mt-1 size-4 accent-[var(--brand)]" required/>I agree to the terms of service and privacy policy.</label>}
-      <button disabled={isVerify && otp.length !== 6} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:opacity-50">{config[screen].action}<ArrowRight size={16}/></button>
+      <button disabled={busy || (isVerify && otp.length !== 6)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Please wait…" : config[screen].action}<ArrowRight size={16}/></button>
     </form>
-    {notice && <Notice>{notice}</Notice>}
-    {isRegister && notice && <Link href="/auth/verify-email" className="mt-4 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--brand)]">Continue to verification preview <ArrowRight size={15}/></Link>}
+    {notice && <div role="status" className="mt-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900">{notice}</div>}
     <div className="mt-7 flex flex-wrap items-center justify-between gap-3 text-sm">
       {isLogin ? <Link className="font-medium text-[var(--brand)]" href="/auth/forgot-password">Forgot password?</Link> : <Link className="inline-flex items-center gap-1 text-[var(--muted)]" href="/auth/login"><ArrowLeft size={14}/> Back to sign in</Link>}
-      {isRegister ? <Link className="font-medium text-[var(--brand)]" href="/auth/login">Already registered? Sign in</Link> : isLogin ? <Link className="font-medium text-[var(--brand)]" href="/auth/register">Create an account</Link> : isForgot ? <Link className="font-medium text-[var(--brand)]" href="/auth/reset-password">Continue to reset preview</Link> : isVerify ? <button type="button" disabled={resendSeconds > 0} onClick={() => { setResendSeconds(30); setNotice("Resend preview selected. No email was sent."); }} className="font-medium text-[var(--brand)] disabled:cursor-not-allowed disabled:text-slate-400">{resendSeconds > 0 ? "Resend code in 00:" + String(resendSeconds).padStart(2, "0") : "Resend code"}</button> : null}
+      {isRegister ? <Link className="font-medium text-[var(--brand)]" href="/auth/login">Already registered? Sign in</Link> : isLogin ? <Link className="font-medium text-[var(--brand)]" href="/auth/register">Create an account</Link> : isForgot ? <Link className="font-medium text-[var(--brand)]" href="/auth/login">Return to sign in</Link> : isVerify ? <button type="button" disabled={busy || resendSeconds > 0 || !email.trim()} onClick={resendCode} className="font-medium text-[var(--brand)] disabled:cursor-not-allowed disabled:text-slate-400">{resendSeconds > 0 ? "Resend code in 00:" + String(resendSeconds).padStart(2, "0") : "Resend code"}</button> : null}
     </div>
-    <p className="mt-8 flex items-center gap-2 text-xs text-[var(--muted)]"><ShieldCheck size={15}/> Account security will follow the approved authentication contract.</p>
+    <p className="mt-8 flex items-center gap-2 text-xs text-[var(--muted)]"><ShieldCheck size={15}/> Account security is enforced by the connected Supabase project.</p>
   </Frame>;
 }
 
