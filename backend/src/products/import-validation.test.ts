@@ -3,7 +3,7 @@ import {
   decimalToMinorUnits,
   ImportValidationError,
   parseCsv,
-  parseImportRow,
+  parseImportRow,\n  validateColumnMapping,\n  assertNoFormulaCells,
 } from "./import-validation.js";
 
 describe("parseCsv", () => {
@@ -62,5 +62,32 @@ describe("parseImportRow", () => {
       [8, "name"],
       [8, "selling_price"],
     ]);
+  });
+});
+
+
+describe("import mapping and formula safety", () => {
+  it("requires name and selling price and rejects duplicate targets", () => {
+    expect(validateColumnMapping(["Product", "Price"], {
+      Product: "name", Price: "selling_price",
+    })).toEqual({ product: "name", price: "selling_price" });
+    expect(() => validateColumnMapping(["Product", "Price"], {
+      Product: "name", Price: "name",
+    })).toThrowError("more than one source column");
+    expect(() => validateColumnMapping(["Product"], {
+      Product: "name",
+    })).toThrowError("name and selling price");
+  });
+
+  it("rejects formula-like cells without evaluating them", () => {
+    expect(() => assertNoFormulaCells([{ rowNumber: 3, values: ["=SUM(A1:A2)"] }]))
+      .toThrowError("Formula-like content");
+    expect(() => assertNoFormulaCells([{ rowNumber: 4, values: ["Notebook", "-12.50"] }]))
+      .not.toThrow();
+  });
+
+  it("rejects malformed quote placement rather than silently accepting it", () => {
+    expect(() => parseCsv('name,price\\nTea,12"50')).toThrowError(ImportValidationError);
+    expect(() => parseCsv('name,price\\n"Tea"x,12')).toThrowError(ImportValidationError);
   });
 });
