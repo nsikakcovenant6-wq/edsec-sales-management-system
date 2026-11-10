@@ -18,6 +18,7 @@ export function OnboardingDraftProvider({ children }: { children: ReactNode }) {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         const parsed = JSON.parse(stored) as Partial<OnboardingDraft>;
         setDraft({
           business: { ...initialDraft.business, ...parsed.business },

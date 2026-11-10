@@ -5,6 +5,7 @@ on:
     branches: [frontend/main]
     paths:
       - "src/**"
+      - "backend/**"
       - ".github/workflows/frontend-ci.yml"
       - "package.json"
       - "tsconfig.json"

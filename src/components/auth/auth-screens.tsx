@@ -66,10 +66,6 @@ export function AuthScreen({ screen }: { screen: AuthName }) {
     "reset-password": { title: "Choose a new password", description: "Create and confirm a new password for your account.", action: "Save new password" }
   };
   useEffect(() => {
-    const queryEmail = new URLSearchParams(window.location.search).get("email");
-    if (queryEmail) setEmail(queryEmail);
-  }, []);
-  useEffect(() => {
     if (!isVerify || resendSeconds === 0) return;
     const timer = window.setTimeout(() => setResendSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
     return () => window.clearTimeout(timer);

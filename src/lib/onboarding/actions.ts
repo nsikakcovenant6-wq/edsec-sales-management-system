@@ -1,4 +1,4 @@
-import { api, ApiError, type BusinessCreate, type BusinessPatch, type Branch, type Membership } from "@/lib/api/client";
+import { api, ApiError, type BusinessCreate, type BusinessPatch, type Membership } from "@/lib/api/client";
 import { canCreateAdditionalBranch } from "@/lib/onboarding/flow";
 import type { BranchDraft } from "@/components/auth/onboarding-draft";
 
