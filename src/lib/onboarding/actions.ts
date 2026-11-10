@@ -18,7 +18,11 @@ export async function saveBusinessProfile(input: BusinessCreate, currentBusiness
       // createBusiness provisions Main Branch atomically; never send a second MAIN branch.
     }
   }
-  await api.patchOnboarding(businessId, { current_step: "business_category", completed_steps: ["business_profile"] });
+  const current = await api.getOnboarding(businessId);
+  await api.patchOnboarding(businessId, {
+    current_step: current.completed_steps.includes("business_category") ? current.current_step : "business_category",
+    completed_steps: [...new Set([...current.completed_steps, "business_profile"])],
+  });
   const me = await api.me();
   const membership = me.memberships.find((item) => item.business_id === businessId) ?? null;
   return { businessId, membership };

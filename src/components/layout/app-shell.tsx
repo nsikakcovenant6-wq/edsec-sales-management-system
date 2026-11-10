@@ -35,7 +35,11 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
     void load();
     return () => { active = false; };
   }, [isAccountFlow, pathname]);
+  useEffect(() => {
+    if (!isAccountFlow && !checking && !authenticated && pathname !== "/") router.replace("/auth/login");
+  }, [isAccountFlow, checking, authenticated, pathname, router]);
   if (isAccountFlow) return <>{children}</>;
+  if (!checking && !authenticated && pathname !== "/") return null;
   const pageTitle = getNavigationTitle(pathname);
   async function signOut() {
     try { await getSupabaseBrowserClient().auth.signOut(); } finally {
