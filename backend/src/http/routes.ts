@@ -45,6 +45,7 @@ function businessDto(value: unknown): Record<string, unknown> {
     timezone: row.timezone, vat_enabled: row.vatEnabled, vat_rate_bps: row.vatRateBps,
     tax_mode: typeof row.taxMode === "string" ? row.taxMode.toLowerCase() : row.taxMode,
     default_branch_id: row.defaultBranchId,
+    ...(Array.isArray(row.businessCategories) ? { category_ids: (row.businessCategories as Array<{categoryId: string}>).map((category) => category.categoryId) } : {}),
   };
 }
 function branchDto(value: unknown): Record<string, unknown> {
