@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const me = vi.fn();
+const me = vi.hoisted(() => vi.fn());
 vi.mock("@backend/src/http/runtime.js", () => ({ getV1RouteHandlers: () => ({ me }) }));
 import { GET } from "./route";
 describe("GET /api/v1/me route adapter", () => {
