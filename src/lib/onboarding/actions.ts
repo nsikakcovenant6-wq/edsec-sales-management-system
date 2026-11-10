@@ -28,7 +28,15 @@ export async function saveBusinessProfile(input: BusinessCreate, currentBusiness
   return { businessId, membership };
 }
 
-export async function loadBusinessCategories(businessId: string): Promise<{ business: Business; categoryIds: string[] }> {\n  const business = await api.getBusiness(businessId);\n  const categoryIds = Array.isArray(business.category_ids)\n    ? [...new Set(business.category_ids.filter((id): id is string => typeof id === \"string\" && id.length > 0))]\n    : [];\n  return { business, categoryIds };\n}\n\nexport async function saveBusinessCategories(businessId: string, categoryIds: string[]) {
+export async function loadBusinessCategories(businessId: string): Promise<{ business: Business; categoryIds: string[] }> {
+  const business = await api.getBusiness(businessId);
+  const categoryIds = Array.isArray(business.category_ids)
+    ? [...new Set(business.category_ids.filter((id): id is string => typeof id === "string" && id.length > 0))]
+    : [];
+  return { business, categoryIds };
+}
+
+export async function saveBusinessCategories(businessId: string, categoryIds: string[]) {
   if (categoryIds.length === 0) throw new ApiError({ code: "VALIDATION_ERROR", message: "Select at least one business category." }, 400);
   await api.replaceCategories(businessId, [...new Set(categoryIds)]);
   const current = await api.getOnboarding(businessId);
