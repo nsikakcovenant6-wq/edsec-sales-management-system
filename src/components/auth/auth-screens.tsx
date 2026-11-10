@@ -161,34 +161,134 @@ type OnboardingStep = "welcome" | "business" | "categories" | "branches" | "stor
 export function OnboardingScreen({ step }: { step: OnboardingStep }) {
   const router = useRouter();
   const { draft, updateBusiness, toggleCategory, addBranch, updateBranch, removeBranch } = useOnboardingDraft();
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [catalog, setCatalog] = useState<Category[]>([]);
+  const [membership, setMembership] = useState<Membership | null>(null);
+  const [businessId, setBusinessId] = useState<string | null>(null);
+  const [serverBranches, setServerBranches] = useState<Branch[]>([]);
+  const [vatEnabled, setVatEnabled] = useState(false);
+  const [vatRate, setVatRate] = useState("750");
+  const [taxMode, setTaxMode] = useState<"inclusive" | "exclusive">("exclusive");
   const selected = draft.categories;
   const additionalBranches = draft.branches;
-  const [notice, setNotice] = useState("");
+  const branchAllowed = canCreateAdditionalBranch(membership);
   const steps = [{ id: "business", label: "Business profile" },{ id: "categories", label: "Categories" },{ id: "branches", label: "Branches" },{ id: "store-configuration", label: "Store configuration" }];
   const current = steps.findIndex((item) => item.id === step);
   const progress = step === "welcome" ? 0 : step === "complete" ? 100 : Math.round(((current + 1) / 4) * 100);
-  const titles: Record<OnboardingStep,string> = { welcome: "Let’s set up your workspace", business: "Tell us about your business", categories: "What kind of business do you run?", branches: "Set up your branches", "store-configuration": "Store configuration", complete: "Review your onboarding progress" };
-  const descriptions: Record<OnboardingStep,string> = { welcome: "A few details will help shape your workspace. Review your choices before connecting an account.", business: "Add your business details. The business name is used when the workspace is created; contact details require the business profile update operation.", categories: "Choose at least one category that describes your business. This is a required onboarding step. The final category list and IDs will come from the approved categories service.", branches: "Your Main Branch is created automatically with the business. Add extra locations only if your business operates from more than one branch.", "store-configuration": "Store configuration is a required backend onboarding step, but its fields and save operation are not yet defined in the reviewed contract. This screen is intentionally a placeholder until those details are approved.", complete: "This is a review of the UI preview, not a completed server-side onboarding record. Store configuration remains outstanding." };
-  const next = step === "welcome" ? "/onboarding/business" : step === "business" ? "/onboarding/categories" : step === "categories" ? "/onboarding/branches" : step === "branches" ? "/onboarding/store-configuration" : "/onboarding/complete";
-  const stepNumber = current + 1;
-  const goNext = () => {
-    if (step === "categories" && selected.length === 0) { setNotice("Select at least one business category before continuing."); return; }
-    setNotice("");
-    router.push(next);
-  };
-  return <Frame><div className="mb-7 flex items-center justify-between"><Link href="/auth/register" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--muted)]"><ArrowLeft size={15}/> Exit setup</Link><span className="text-xs font-medium text-[var(--muted)]">Preview setup</span></div>
-    <div className="mb-8"><div className="mb-3 flex justify-between text-xs text-[var(--muted)]"><span>{step === "welcome" ? "Getting started" : step === "complete" ? "Preview review" : "Step " + stepNumber + " of 4"}</span><span>{step === "complete" ? "Preview only" : progress + "%"}</span></div><div role="progressbar" aria-label="Onboarding progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-[var(--brand)] transition-all" style={{ width: progress + "%" }}/></div></div>
+  const titles: Record<OnboardingStep,string> = { welcome: "Let’s set up your workspace", business: "Tell us about your business", categories: "What kind of business do you run?", branches: "Set up your branches", "store-configuration": "Store configuration", complete: "Your onboarding progress" };
+  const descriptions: Record<OnboardingStep,string> = { welcome: "Your setup is saved to your EDSEC account and can be resumed later.", business: "Create your business workspace. The backend provisions its Main Branch automatically.", categories: "Choose at least one category from the live EDSEC catalogue.", branches: "Your Main Branch is already provisioned. Add other locations only when your plan includes multi-branch management.", "store-configuration": "Configure tax settings for this business. These values are saved to your business profile.", complete: "Your onboarding state is loaded from the backend." };
+  const next = step === "welcome" ? "/onboarding/business" : step === "business" ? "/onboarding/categories" : step === "categories" ? "/onboarding/branches" : "/onboarding/store-configuration";
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      try {
+        const [categories, me] = await Promise.all([api.categories(), api.me()]);
+        if (!active) return;
+        setCatalog(categories);
+        const preferred = window.localStorage.getItem("edsec.activeBusinessId");
+        const selectedMember = me.memberships.find((item) => item.business_id === preferred) ?? me.memberships[0] ?? null;
+        if (!selectedMember) {
+          setMembership(null); setBusinessId(null);
+          if (step !== "welcome" && step !== "business") router.replace("/onboarding/welcome");
+          return;
+        }
+        setMembership(selectedMember); setBusinessId(selectedMember.business_id);
+        window.localStorage.setItem("edsec.activeBusinessId", selectedMember.business_id);
+        const [business, onboarding, branchPage] = await Promise.all([
+          api.getBusiness(selectedMember.business_id),
+          api.getOnboarding(selectedMember.business_id),
+          api.listBranches(selectedMember.business_id),
+        ]);
+        if (!active) return;
+        updateBusiness("name", business.name);
+        updateBusiness("email", business.email ?? "");
+        updateBusiness("phone", business.phone ?? "");
+        updateBusiness("address", business.address ?? "");
+        updateBusiness("currency", business.currency_code);
+        updateBusiness("timezone", business.timezone);
+        setVatEnabled(business.vat_enabled); setVatRate(String(business.vat_rate_bps)); setTaxMode(business.tax_mode);
+        setServerBranches(branchPage.items);
+        if (step === "welcome") router.replace(getOnboardingRoute(onboarding.current_step));
+        if (step === "complete" && onboarding.status !== "completed") router.replace(getOnboardingRoute(onboarding.current_step));
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "UNAUTHENTICATED") router.replace("/auth/login");
+        else setNotice(error instanceof Error ? error.message : "Unable to load your saved onboarding details.");
+      } finally { if (active) setLoading(false); }
+    }
+    void load();
+    return () => { active = false; };
+  // Route step changes should not re-run the bootstrap or overwrite unsaved edits.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function runAction(action: () => Promise<void>) {
+    setBusy(true); setNotice("");
+    try { await action(); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "Your changes could not be saved. Please try again."); }
+    finally { setBusy(false); }
+  }
+  async function submitBusiness(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (draft.business.name.trim().length < 2) { setNotice("Enter a business name with at least two non-space characters."); return; }
+    await runAction(async () => {
+      const result = await saveBusinessProfile({
+        name: draft.business.name.trim(), email: draft.business.email.trim() || null,
+        phone: draft.business.phone.trim() || null, address: draft.business.address.trim() || null,
+        currency_code: draft.business.currency, timezone: draft.business.timezone,
+      }, businessId);
+      setBusinessId(result.businessId); setMembership(result.membership);
+      router.push("/onboarding/categories");
+    });
+  }
+  async function submitCategories() {
+    if (!businessId) { setNotice("Create or select a business before choosing categories."); return; }
+    if (selected.length === 0) { setNotice("Select at least one business category before continuing."); return; }
+    await runAction(async () => { await saveBusinessCategories(businessId, selected); router.push("/onboarding/branches"); });
+  }
+  async function submitBranches() {
+    if (!businessId) return;
+    await runAction(async () => {
+      const updated = await saveBranchSetup(businessId, membership, additionalBranches);
+      setServerBranches(updated.items); router.push("/onboarding/store-configuration");
+    });
+  }
+  async function submitStoreConfiguration() {
+    if (!businessId) return;
+    const parsedVatRate = Number(vatRate);
+    if (!Number.isInteger(parsedVatRate) || parsedVatRate < 0 || parsedVatRate > 10000) { setNotice("Enter a VAT rate between 0 and 10000 basis points."); return; }
+    await runAction(async () => {
+      await saveStoreConfiguration(businessId, { vat_enabled: vatEnabled, vat_rate_bps: parsedVatRate, tax_mode: taxMode });
+      router.push("/onboarding/complete");
+    });
+  }
+  async function toggleBranch(branch: Branch) {
+    if (!businessId) return;
+    await runAction(async () => {
+      const updated = await api.updateBranch(businessId, branch.id, { is_active: !branch.is_active });
+      setServerBranches((items) => items.map((item) => item.id === updated.id ? updated : item));
+    });
+  }
+
+  return <Frame>
+    <div className="mb-7 flex items-center justify-between"><Link href="/auth/login" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--muted)]"><ArrowLeft size={15}/> Sign out / exit</Link><span className="text-xs font-medium text-[var(--muted)]">{membership ? "Saved workspace setup" : "New workspace setup"}</span></div>
+    <div className="mb-8"><div className="mb-3 flex justify-between text-xs text-[var(--muted)]"><span>{step === "welcome" ? "Getting started" : step === "complete" ? "Onboarding status" : "Step " + (current + 1) + " of 4"}</span><span>{progress}%</span></div><div role="progressbar" aria-label="Onboarding progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-[var(--brand)] transition-all" style={{ width: progress + "%" }}/></div></div>
     <div className="mb-8"><span className="mb-4 grid size-12 place-items-center rounded-2xl bg-[var(--brand-soft)] text-[var(--brand)]"><Building2 size={22}/></span><h1 className="text-3xl font-semibold tracking-tight">{titles[step]}</h1><p className="mt-3 text-sm leading-6 text-[var(--muted)]">{descriptions[step]}</p></div>
-    {step === "welcome" && <div className="space-y-3">{["Business details","Categories and services","Branches and locations","Store configuration"].map((item,i) => <div key={item} className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4"><span className="grid size-8 place-items-center rounded-lg bg-slate-100 text-sm font-semibold">{i+1}</span><span className="text-sm font-medium">{item}</span><ChevronRight className="ml-auto text-slate-400" size={17}/></div>)}</div>}
-    {step === "business" && <form id="onboarding-form" className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (draft.business.name.trim().length < 2) { setNotice("Enter a business name with at least two non-space characters."); return; } setNotice(""); router.push(next); }}><Field label="Business name" placeholder="e.g. Covenant Stores" minLength={2} maxLength={160} value={draft.business.name} onChange={(value) => updateBusiness("name", value)}/><Field label="Business email" type="email" placeholder="business@example.com" required={false} value={draft.business.email} onChange={(value) => updateBusiness("email", value)}/><Field label="Business phone" type="tel" placeholder="+234 800 000 0000" autoComplete="tel" required={false} value={draft.business.phone} onChange={(value) => updateBusiness("phone", value)}/><Field label="Business address" placeholder="Street, city, state" required={false} value={draft.business.address} onChange={(value) => updateBusiness("address", value)}/><div className="grid gap-4 sm:grid-cols-2"><Field label="Currency code" placeholder="NGN" value={draft.business.currency} onChange={(value) => updateBusiness("currency", value.toUpperCase().slice(0,3))} pattern="[A-Z]{3}"/><Field label="Time zone" placeholder="Africa/Lagos" value={draft.business.timezone} onChange={(value) => updateBusiness("timezone", value)}/></div></form>}
-    {step === "categories" && <div><p className="mb-3 text-xs text-[var(--muted)]" aria-live="polite">{selected.length} selected</p><div role="group" aria-label="Business categories" className="grid gap-3 sm:grid-cols-2">{categories.map((category) => { const active = selected.includes(category); return <button type="button" key={category} aria-pressed={active} onClick={() => toggleCategory(category)} className={"flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium transition " + (active ? "border-blue-400 bg-blue-50 text-[var(--brand)]" : "border-[var(--border)] bg-white text-slate-700 hover:border-slate-300")}>{category}{active && <Check aria-hidden="true" size={17}/>}</button>; })}</div></div>}
-    {step === "branches" && <form id="onboarding-form" className="space-y-5" onSubmit={(event) => { event.preventDefault(); if (additionalBranches.some((branch) => !branch.name.trim() || !branch.code.trim())) { setNotice("Complete the name and code for each additional branch, or remove any unfinished branch."); return; } setNotice(""); router.push(next); }}><div className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-700"><Building2 size={18}/></span><div><p className="text-sm font-semibold text-blue-950">Main Branch is created automatically</p><p className="mt-1 text-xs leading-5 text-blue-800">When your business is created, the backend provisions a default branch named “Main Branch” with code “MAIN”. Add extra branches below only when you need them.</p></div></div>
-      {additionalBranches.map((branch,index) => <fieldset key={branch.id} className="min-w-0 space-y-4 rounded-2xl border border-[var(--border)] bg-white p-4 sm:p-5"><legend className="sr-only">Additional branch {index + 1}</legend><div className="flex items-center justify-between gap-3"><p className="font-semibold">Additional branch {index + 1}</p><button type="button" onClick={() => removeBranch(branch.id)} aria-label={"Remove additional branch " + (index + 1)} className="min-h-10 rounded-lg px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50 focus-visible:outline-rose-600">Remove</button></div><Field label="Branch name" placeholder="e.g. Rumuokoro outlet" value={branch.name} onChange={(value) => updateBranch(branch.id,"name",value)}/><Field label="Branch code" placeholder="e.g. RUMU" value={branch.code} onChange={(value) => updateBranch(branch.id,"code",value)}/><Field label="Branch address" placeholder="Street, city, state" required={false} value={branch.address} onChange={(value) => updateBranch(branch.id,"address",value)}/></fieldset>)}
-      <div className="flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-white p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-medium">Additional branches</p><p aria-live="polite" className="mt-1 text-xs text-[var(--muted)]">{additionalBranches.length} added · Add as many locations as your business needs</p></div><div className="flex items-center gap-3 self-end sm:self-auto"><button type="button" aria-label="Remove last branch" disabled={additionalBranches.length === 0} onClick={() => additionalBranches.length && removeBranch(additionalBranches[additionalBranches.length - 1].id)} className="grid size-10 place-items-center rounded-lg border disabled:cursor-not-allowed disabled:opacity-40">−</button><span className="min-w-4 text-center text-sm tabular-nums">{additionalBranches.length}</span><button type="button" aria-label="Add branch" onClick={addBranch} className="grid size-10 place-items-center rounded-lg border hover:bg-slate-50">+</button></div></div></form>}
-    {step === "store-configuration" && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="text-sm font-semibold text-amber-950">Waiting for the approved store configuration contract</p><p className="mt-2 text-sm leading-6 text-amber-900">The backend currently marks this step as required before onboarding can be completed. The contract does not yet define the store settings fields or a save endpoint, so this preview does not invent them.</p><p className="mt-3 text-xs text-amber-800">This step cannot be marked complete until the backend contract and implementation are available.</p></div>}{step === "complete" && <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6"><span className="grid size-11 place-items-center rounded-full bg-slate-200 text-slate-700"><Check size={22}/></span><h2 className="mt-4 text-lg font-semibold text-slate-950">Preview screens reviewed</h2><p className="mt-2 text-sm leading-6 text-slate-700">Your choices have not been submitted or stored. This is not a completed onboarding record. Store configuration is still a required backend step and must be implemented before the system can mark onboarding complete.</p><Link href="/auth/login" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[var(--brand)]">Return to sign in <ArrowRight size={16}/></Link></div>}
-    {notice && <Notice>{notice}</Notice>}
-    {step === "store-configuration" && <div className="mt-8 flex justify-end"><button type="button" onClick={() => router.push("/onboarding/complete")} className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--brand-strong)]">Review setup status <ArrowRight size={16}/></button></div>}
-    {step !== "complete" && step !== "store-configuration" && <div className="mt-8 flex items-center justify-between gap-3"><div className="flex items-center gap-4">{step !== "welcome" && <button type="button" onClick={() => router.push(step === "business" ? "/onboarding/welcome" : step === "categories" ? "/onboarding/business" : "/onboarding/categories")} className="text-sm font-medium text-[var(--muted)]">Back</button>}{step === "branches" && <button type="button" onClick={() => router.push("/onboarding/store-configuration")} className="text-sm font-medium text-[var(--muted)]">Skip branch setup</button>}</div><button type={step === "business" || step === "branches" ? "submit" : "button"} form={step === "business" || step === "branches" ? "onboarding-form" : undefined} onClick={step === "business" || step === "branches" ? undefined : goNext} className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--brand-strong)]">{step === "welcome" ? "Start setup" : step === "branches" ? "Continue" : "Save and continue"}<ArrowRight size={16}/></button></div>}
-    <p className="mt-7 flex items-center gap-2 text-xs text-[var(--muted)]"><ShieldCheck size={14}/> This setup is presentation-only and is not connected to a backend.</p>
+    {loading && <div role="status" className="rounded-xl border border-[var(--border)] bg-white p-4 text-sm text-[var(--muted)]">Loading your saved workspace and onboarding progress…</div>}
+    {!loading && step === "welcome" && <div className="space-y-3">{["Business details","Categories and services","Branches and locations","Store configuration"].map((item,i) => <div key={item} className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4"><span className="grid size-8 place-items-center rounded-lg bg-slate-100 text-sm font-semibold">{i+1}</span><span className="text-sm font-medium">{item}</span><ChevronRight className="ml-auto text-slate-400" size={17}/></div>)}</div>}
+    {!loading && step === "business" && <form id="onboarding-form" className="space-y-4" onSubmit={submitBusiness}><Field label="Business name" placeholder="e.g. Covenant Stores" minLength={2} maxLength={160} value={draft.business.name} onChange={(value) => updateBusiness("name", value)}/><Field label="Business email" type="email" placeholder="business@example.com" required={false} value={draft.business.email} onChange={(value) => updateBusiness("email", value)}/><Field label="Business phone" type="tel" placeholder="+234 800 000 0000" autoComplete="tel" required={false} value={draft.business.phone} onChange={(value) => updateBusiness("phone", value)}/><Field label="Business address" placeholder="Street, city, state" required={false} value={draft.business.address} onChange={(value) => updateBusiness("address", value)}/><div className="grid gap-4 sm:grid-cols-2"><Field label="Currency code" placeholder="NGN" value={draft.business.currency} onChange={(value) => updateBusiness("currency", value.toUpperCase().slice(0,3))} pattern="[A-Z]{3}"/><Field label="Time zone" placeholder="Africa/Lagos" value={draft.business.timezone} onChange={(value) => updateBusiness("timezone", value)}/></div><button disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : membership ? "Save and continue" : "Create business and continue"}<ArrowRight size={16}/></button></form>}
+    {!loading && step === "categories" && <div><p className="mb-3 text-xs text-[var(--muted)]" aria-live="polite">{selected.length} selected</p>{catalog.length === 0 ? <div className="rounded-xl border border-[var(--border)] bg-white p-4 text-sm text-[var(--muted)]">No active categories are available yet. Ask an administrator to publish the category catalogue.</div> : <div role="group" aria-label="Business categories" className="grid gap-3 sm:grid-cols-2">{catalog.map((category) => { const active = selected.includes(category.id); return <button type="button" key={category.id} aria-pressed={active} onClick={() => toggleCategory(category.id)} className={"flex min-h-14 items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium transition " + (active ? "border-blue-400 bg-blue-50 text-[var(--brand)]" : "border-[var(--border)] bg-white text-slate-700 hover:border-slate-300")}>{category.name}{active && <Check aria-hidden="true" size={17}/>}</button>; })}</div>}</div>}
+    {!loading && step === "branches" && <div className="space-y-5">
+      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4"><p className="text-sm font-semibold text-blue-950">Main Branch is already created</p><p className="mt-1 text-xs leading-5 text-blue-800">The backend provisions exactly one default branch named “Main Branch” with code “MAIN” during business creation. This screen never creates another Main Branch.</p></div>
+      <div className="space-y-2">{serverBranches.map((branch) => <div key={branch.id} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-white p-3"><div><p className="text-sm font-semibold">{branch.name} {branch.is_default && <span className="ml-1 text-xs font-normal text-[var(--muted)]">(default)</span>}</p><p className="text-xs text-[var(--muted)]">{branch.code} · {branch.is_active ? "Active" : "Inactive"}</p></div>{!branch.is_default && <button type="button" disabled={!branchAllowed || busy} onClick={() => void toggleBranch(branch)} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-40">{branch.is_active ? "Deactivate" : "Activate"}</button>}</div>)}</div>
+      {!branchAllowed && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">Additional branch creation and management are not included in the current plan or permissions. Your Main Branch remains available; you can continue without adding locations.</div>}
+      {branchAllowed && <><div className="space-y-4">{additionalBranches.map((branch,index) => <fieldset key={branch.id} className="min-w-0 space-y-4 rounded-2xl border border-[var(--border)] bg-white p-4"><legend className="sr-only">Additional branch {index+1}</legend><div className="flex items-center justify-between"><p className="font-semibold">New branch {index+1}</p><button type="button" onClick={() => removeBranch(branch.id)} className="min-h-10 rounded-lg px-3 text-xs font-semibold text-rose-700">Remove</button></div><Field label="Branch name" value={branch.name} onChange={(value)=>updateBranch(branch.id,"name",value)}/><Field label="Branch code" value={branch.code} onChange={(value)=>updateBranch(branch.id,"code",value.toUpperCase())}/><Field label="Branch address" required={false} value={branch.address} onChange={(value)=>updateBranch(branch.id,"address",value)}/></fieldset>)}</div><button type="button" onClick={addBranch} className="rounded-lg border border-[var(--border)] bg-white px-4 py-2.5 text-sm font-semibold">+ Add another branch</button></>}
+    </div>}
+    {!loading && step === "store-configuration" && <div className="space-y-4 rounded-2xl border border-[var(--border)] bg-white p-5"><label className="flex items-center gap-3 text-sm font-medium"><input type="checkbox" checked={vatEnabled} onChange={(event)=>setVatEnabled(event.target.checked)} className="size-4 accent-[var(--brand)]"/> Enable VAT</label><Field label="VAT rate (basis points)" type="number" inputMode="numeric" value={vatRate} onChange={setVatRate} required={vatEnabled}/><label className="block text-sm font-medium">Tax mode<select value={taxMode} onChange={(event)=>setTaxMode(event.target.value as "inclusive"|"exclusive")} className={fieldClass}><option value="exclusive">Exclusive</option><option value="inclusive">Inclusive</option></select></label><p className="text-xs leading-5 text-[var(--muted)]">These settings use the backend business profile fields: VAT enabled, VAT rate in basis points and tax mode.</p><button type="button" disabled={busy} onClick={()=>void submitStoreConfiguration()} className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save settings and finish"}<ArrowRight size={16}/></button></div>}
+    {!loading && step === "complete" && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6"><span className="grid size-11 place-items-center rounded-full bg-emerald-100 text-emerald-700"><Check size={22}/></span><h2 className="mt-4 text-lg font-semibold text-emerald-950">Onboarding saved</h2><p className="mt-2 text-sm leading-6 text-emerald-900">Your business profile, category selection and store configuration have been saved. Your Main Branch was created once by the backend.</p><p className="mt-3 text-xs text-emerald-800">Business ID: {businessId}</p><Link href="/" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-3 text-sm font-semibold text-white">Open workspace <ArrowRight size={16}/></Link></div>}
+    {notice && <div role="alert" className="mt-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-800">{notice}</div>}
+    {!loading && step !== "complete" && step !== "business" && step !== "store-configuration" && <div className="mt-8 flex items-center justify-between gap-3"><div className="flex items-center gap-4">{step !== "welcome" && <button type="button" onClick={() => router.push(step === "categories" ? "/onboarding/business" : "/onboarding/categories")} className="text-sm font-medium text-[var(--muted)]">Back</button>}{step === "branches" && <button type="button" disabled={busy} onClick={()=>void runAction(async()=>{if(!businessId) return; const updated=await saveBranchSetup(businessId,membership,[]);setServerBranches(updated.items);router.push("/onboarding/store-configuration");})} className="text-sm font-medium text-[var(--muted)]">Skip branch setup</button>}</div><button type="button" disabled={busy} onClick={step === "welcome" ? () => router.push(next) : () => void submitCategories()} className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : step === "welcome" ? "Start setup" : "Save and continue"}<ArrowRight size={16}/></button></div>}
+    {!loading && step === "branches" && <div className="mt-5 flex justify-end"><button type="button" disabled={busy} onClick={()=>void submitBranches()} className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save branches and continue"}<ArrowRight size={16}/></button></div>}
   </Frame>;
 }
