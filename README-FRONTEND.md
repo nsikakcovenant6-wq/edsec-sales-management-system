@@ -86,3 +86,11 @@ The workspace shell includes responsive navigation, permission-aware navigation,
 ## Continuous integration
 
 `.github/workflows/frontend-ci.yml` installs the frontend/backend workspace dependencies, generates the Prisma client, then runs ESLint, TypeScript checking, Vitest and the Next.js production build. Only completed successful GitHub Actions runs are reported as green.
+
+## Phase 2 — Product templates and bulk import
+
+- `/onboarding/product-templates`: searchable/category-filtered template catalogue, multi-selection and review before requesting backend copies.
+- `/onboarding/product-import` and `/products/import`: CSV/XLSX selection, column mapping, local diagnostic preview and explicit backend import state.
+- Template copies are only considered successful after the backend responds and the response confirms zero opening stock.
+- The backend PR #6 currently defines the product-template and import behaviour but has not yet implemented the route handlers, signed uploads or import status/report operations. These screens display an endpoint-not-ready state. They do not fabricate data, create products from local state or report unconfirmed imports as successful.
+- CSV preview is a convenience only; server validation is authoritative. XLSX preview awaits the backend's safe parser/upload contract.

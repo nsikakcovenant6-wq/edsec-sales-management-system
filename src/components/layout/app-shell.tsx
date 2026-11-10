@@ -9,7 +9,7 @@ import { Can, PermissionProvider } from "@/lib/permissions";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { api } from "@/lib/api/client";
 
-const mobileItems = navigationItems.filter((item) => ["/", "/products", "/inventory", "/pos"].includes(item.href));
+const mobileItems = navigationItems.filter((item) => ["/", "/products", "/products/import", "/inventory"].includes(item.href));
 function isActive(pathname: string, href: string) { return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`); }
 
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
