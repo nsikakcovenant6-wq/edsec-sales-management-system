@@ -1,0 +1,9 @@
+# Historical v1.1 OpenAPI placeholder
+
+This path is retained for compatibility with the original repository layout. It is not the active API contract.
+
+The complete backward-compatible contract, including the v1.1 operation families and subsequent reconciliations, is maintained at:
+- Canonical: `/contracts/openapi.yaml`
+- Documentation snapshot: `/docs/backend/openapi-v1.3.yaml`
+
+Do not generate frontend types from this historical path. Use the canonical contract only after its PR is approved and marked stable.
